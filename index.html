@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Stock Challenge</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f14;
+  --surface: #161a23;
+  --surface2: #1d2230;
+  --border: #2a3045;
+  --border2: #3a4560;
+  --text: #e8eaf0;
+  --muted: #7a8299;
+  --accent: #4f8ef7;
+  --accent2: #6ee7b7;
+  --green: #22c55e;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --gold: #fbbf24;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:300;padding:24px;}
+.overlay.hidden{display:none;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:32px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:20px;font-weight:700;margin-bottom:6px;}
+.modal-sub{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.6;}
+.form-group{margin-bottom:16px;}
+.form-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color 0.15s;}
+.form-input:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--muted);}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.hint a{color:var(--accent);}
+.btn{padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:all 0.15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#3a7ce8;}
+.btn-primary:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-success{background:var(--green);color:#000;}
+.btn-success:hover{background:#16a34a;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-danger:hover{background:#dc2626;}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text);}
+.btn-sm{padding:6px 12px;font-size:13px;}
+.btn-full{width:100%;justify-content:center;}
+.step-indicator{display:flex;gap:8px;margin-bottom:28px;}
+.step-dot{height:4px;border-radius:2px;flex:1;background:var(--border);transition:background 0.3s;}
+.step-dot.done{background:var(--accent);}
+.divider{height:1px;background:var(--border);margin:20px 0;}
+/* COLOR SWATCHES */
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all 0.15s;}
+.swatch.selected{border-color:var(--text);}
+/* MEMBER LIST */
+.member-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.member-item:last-child{border-bottom:none;}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;}
+.avatar-sm{width:28px;height:28px;font-size:11px;}
+.member-info{flex:1;}
+.member-name{font-weight:600;font-size:15px;}
+.member-sub{font-size:12px;color:var(--muted);margin-top:1px;}
+
+/* HEADER */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;}
+.logo{font-size:18px;font-weight:700;letter-spacing:-0.5px;}
+.logo span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:12px;}
+.market-pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+.status-dot.closed{background:var(--amber);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.pulse{animation:pulse 2s infinite;}
+
+/* PLAYER TABS */
+.player-bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:4px;overflow-x:auto;}
+.player-bar::-webkit-scrollbar{height:0;}
+.player-tab{padding:12px 16px;cursor:pointer;border-bottom:3px solid transparent;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:8px;}
+.player-tab:hover{color:var(--text);}
+.player-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.add-member-tab{padding:12px 16px;cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;transition:color 0.15s;}
+.add-member-tab:hover{color:var(--accent);}
+
+/* LAYOUT */
+.main{display:grid;grid-template-columns:1fr 340px;min-height:calc(100vh - 108px);}
+.left-panel{padding:24px;border-right:1px solid var(--border);}
+.right-panel{padding:24px;}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;}
+.card-title{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
+
+/* SUMMARY */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-box{background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;}
+.stat-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.05em;}
+.stat-value{font-size:21px;font-weight:700;margin-top:4px;font-family:'JetBrains Mono',monospace;}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.green{color:var(--green);}
+.red{color:var(--red);}
+
+/* SEARCH */
+.search-row{display:flex;gap:8px;margin-bottom:12px;}
+.search-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color 0.15s;}
+.search-input:focus{border-color:var(--accent);}
+.search-input::placeholder{color:var(--muted);}
+
+/* QUOTE */
+.quote-result{background:var(--surface2);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;display:none;}
+.quote-result.visible{display:block;}
+.quote-ticker{font-size:20px;font-weight:700;}
+.quote-name{font-size:13px;color:var(--muted);margin-top:2px;}
+.quote-price{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:8px;}
+.quote-change{font-size:13px;margin-top:2px;}
+.quote-change.up{color:var(--green);}
+.quote-change.down{color:var(--red);}
+.trade-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);}
+.qty-input{width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;}
+.qty-input:focus{border-color:var(--accent);}
+.trade-cost{font-size:12px;color:var(--muted);margin-top:8px;}
+.trade-cost span{color:var(--text);font-weight:600;}
+
+/* HOLDINGS */
+.holdings-table{width:100%;border-collapse:collapse;font-size:13px;}
+.holdings-table th{text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding:6px 0;border-bottom:1px solid var(--border);font-weight:600;}
+.holdings-table td{padding:11px 0;border-bottom:1px solid var(--border);vertical-align:middle;}
+.holdings-table tr:last-child td{border-bottom:none;}
+.ticker-badge{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);}
+.sell-mini{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.15s;}
+.sell-mini:hover{background:var(--red);color:#fff;}
+
+/* HISTORY */
+.hist-row{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.hist-row:last-child{border-bottom:none;}
+.hist-badge{display:inline-block;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;margin-right:6px;}
+.hist-badge.BUY{background:rgba(34,197,94,0.15);color:var(--green);}
+.hist-badge.SELL{background:rgba(239,68,68,0.15);color:var(--red);}
+.hist-meta{color:var(--muted);font-size:11px;margin-top:3px;}
+
+/* LEADERBOARD */
+.lb-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.lb-row:last-child{border-bottom:none;}
+.lb-rank{font-size:18px;width:28px;text-align:center;}
+.lb-info{flex:1;min-width:0;}
+.lb-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.lb-value{text-align:right;flex-shrink:0;}
+.lb-total{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;}
+.lb-gain{font-size:11px;margin-top:2px;}
+
+/* TABS */
+.tab-bar{display:flex;gap:4px;margin-bottom:16px;}
+.tab-btn{padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:all 0.15s;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* EMPTY */
+.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:14px;}
+.empty-icon{font-size:28px;margin-bottom:8px;}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 20px;font-size:14px;font-weight:500;z-index:999;opacity:0;transform:translateY(12px);transition:all 0.25s;pointer-events:none;max-width:320px;}
+#toast.show{opacity:1;transform:translateY(0);}
+#toast.success{border-color:var(--green);color:var(--green);}
+#toast.error{border-color:var(--red);color:var(--red);}
+#toast.info{border-color:var(--accent);color:var(--accent);}
+
+/* PROGRESS */
+.progress-bar{height:6px;background:var(--border);border-radius:3px;margin-top:12px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:3px;background:var(--accent);transition:width 0.4s;}
+
+/* MARKET SNAPSHOT */
+.snap-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.snap-row:last-child{border-bottom:none;}
+
+/* TIPS */
+#tipText{font-size:14px;line-height:1.7;color:var(--text);}
+
+/* SPIN */
+.spin{animation:spin 1s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* FIREBASE SETUP STEPS */
+.firebase-step{background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;font-size:13px;line-height:1.6;border-left:3px solid var(--accent);}
+.firebase-step strong{color:var(--text);}
+.firebase-step code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent2);background:rgba(110,231,183,0.1);padding:1px 5px;border-radius:3px;}
+
+/* MEMBER MANAGEMENT */
+.manage-btn{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.manage-btn:hover{border-color:var(--red);color:var(--red);}
+
+@media(max-width:768px){
+  .main{grid-template-columns:1fr;}
+  .right-panel{border-top:1px solid var(--border);}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== SETUP WIZARD ==================== -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <div id="wizardContent"></div>
+  </div>
+</div>
+
+<!-- ==================== ADD MEMBER MODAL ==================== -->
+<div class="overlay hidden" id="addMemberOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">Add Member</div>
+    <div class="modal-sub">Add a new player to the challenge.</div>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="newMemberName" placeholder="e.g. Grandpa Joe">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Avatar Color</label>
+      <div class="swatch-row" id="newMemberSwatches"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Emoji (optional)</label>
+      <input class="form-input" id="newMemberEmoji" placeholder="e.g. 🦁" maxlength="2" style="width:80px;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" id="addMemberCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-primary" id="addMemberSaveBtn" style="flex:1;">Add Player</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MANAGE MEMBERS MODAL ==================== -->
+<div class="overlay hidden" id="manageMembersOverlay">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title">Manage Members</div>
+    <div class="modal-sub">Remove members or adjust the challenge. Core members (Dad, Pam, Caden) cannot be deleted.</div>
+    <div id="manageMembersList"></div>
+    <div style="margin-top:20px;">
+      <button class="btn btn-ghost btn-full" id="manageMembersCloseBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== RESET MODAL ==================== -->
+<div class="overlay hidden" id="resetOverlay">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title">⚠️ Reset Everything?</div>
+    <div class="modal-sub">This deletes ALL portfolios, trades, and members from Firebase. Cannot be undone.</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="resetCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-danger" id="resetConfirmBtn" style="flex:1;">Yes, Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== HEADER ==================== -->
+<div class="header">
+  <div class="logo">Family <span>Stock</span> Challenge</div>
+  <div class="header-right">
+    <div class="market-pill">
+      <div class="status-dot pulse" id="statusDot"></div>
+      <span id="statusText">...</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="manageBtn">Members</button>
+    <button class="btn btn-ghost btn-sm" id="resetBtn">Reset</button>
+  </div>
+</div>
+
+<!-- ==================== PLAYER TABS ==================== -->
+<div class="player-bar" id="playerBar"></div>
+
+<!-- ==================== MAIN ==================== -->
+<div class="main">
+  <div class="left-panel">
+
+    <!-- PORTFOLIO SUMMARY -->
+    <div class="card">
+      <div class="card-title" id="playerNameLabel">Portfolio</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-label">Cash Available</div>
+          <div class="stat-value" id="statCash">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Holdings Value</div>
+          <div class="stat-value" id="statHoldings">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Net Worth</div>
+          <div class="stat-value" id="statNet">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Total Gain / Loss</div>
+          <div class="stat-value" id="statGain">—</div>
+          <div class="stat-sub" id="statGainPct"></div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="holdingsBar" style="width:0%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px;">
+        <span>← Cash</span><span>Holdings →</span>
+      </div>
+    </div>
+
+    <!-- TRADE -->
+    <div class="card">
+      <div class="card-title">Trade Stocks</div>
+      <div class="search-row">
+        <input class="search-input" id="tickerInput" placeholder="Symbol (e.g. AAPL, MSFT, NVDA)" maxlength="10">
+        <button class="btn btn-primary" id="lookupBtn">Look Up</button>
+      </div>
+      <div class="quote-result" id="quoteResult">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="quote-ticker" id="qTicker"></div>
+            <div class="quote-name" id="qName"></div>
+          </div>
+          <span id="qExchange" style="font-size:11px;background:rgba(79,142,247,0.15);color:var(--accent);padding:3px 8px;border-radius:4px;font-weight:600;"></span>
+        </div>
+        <div class="quote-price" id="qPrice"></div>
+        <div class="quote-change" id="qChange"></div>
+        <div class="trade-row">
+          <div>
+            <div class="form-label">Shares</div>
+            <input class="qty-input" type="number" id="qtyInput" min="1" value="1">
+          </div>
+          <button class="btn btn-success" id="buyBtn">Buy</button>
+          <button class="btn btn-danger" id="sellBtn">Sell</button>
+        </div>
+        <div class="trade-cost" id="tradeCost"></div>
+      </div>
+    </div>
+
+    <!-- HOLDINGS + HISTORY -->
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="holdings">Holdings</button>
+        <button class="tab-btn" data-tab="history">Trade History</button>
+      </div>
+      <div class="tab-pane active" id="tab-holdings">
+        <div id="holdingsContainer"><div class="empty"><div class="empty-icon">📈</div>No positions yet.</div></div>
+      </div>
+      <div class="tab-pane" id="tab-history">
+        <div id="historyContainer"><div class="empty"><div class="empty-icon">📋</div>No trades yet.</div></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="right-panel">
+
+    <!-- LEADERBOARD -->
+    <div class="card">
+      <div class="card-title">🏆 Leaderboard</div>
+      <div id="leaderboard"><div class="empty" style="padding:16px;">Loading...</div></div>
+    </div>
+
+    <!-- TIP -->
+    <div class="card">
+      <div class="card-title">💡 Investing Tip</div>
+      <div id="tipText"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%;" id="nextTipBtn">Next Tip →</button>
+    </div>
+
+    <!-- MARKET SNAPSHOT -->
+    <div class="card">
+      <div class="card-title">📊 Market Snapshot</div>
+      <div id="marketSnapshot" style="color:var(--muted);font-size:13px;">Loading...</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, set, get, update, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const AVATAR_COLORS = [
+  {color:'#4f8ef7',bg:'rgba(79,142,247,0.2)'},
+  {color:'#a78bfa',bg:'rgba(167,139,250,0.2)'},
+  {color:'#6ee7b7',bg:'rgba(110,231,183,0.2)'},
+  {color:'#f59e0b',bg:'rgba(245,158,11,0.2)'},
+  {color:'#f472b6',bg:'rgba(244,114,182,0.2)'},
+  {color:'#34d399',bg:'rgba(52,211,153,0.2)'},
+  {color:'#fb923c',bg:'rgba(251,146,60,0.2)'},
+  {color:'#e879f9',bg:'rgba(232,121,249,0.2)'},
+];
+
+const DEFAULT_MEMBERS = [
+  { id:'dad',   name:'Dad',   initials:'D', colorIdx:0, emoji:'👨', isCore:true },
+  { id:'pam',   name:'Pam',   initials:'P', colorIdx:1, emoji:'👩', isCore:true },
+  { id:'caden', name:'Caden', initials:'C', colorIdx:2, emoji:'🎮', isCore:true },
+];
+
+const MARKET_SYMBOLS = ['SPY','QQQ','AAPL','MSFT','NVDA','TSLA'];
+
+const TIPS = [
+  "📌 <b>Buy low, sell high.</b> The goal is to buy when cheap and sell when valuable. Patience is everything.",
+  "📌 <b>Diversify.</b> Don't put all money in one stock. Spread across companies to reduce risk.",
+  "📌 <b>Think long-term.</b> Warren Buffett says his favorite holding period is 'forever.' Great companies grow over years, not days.",
+  "📌 <b>Volatility is normal.</b> Stocks go up AND down. A drop doesn't mean you've lost — unless you sell.",
+  "📌 <b>Research before you buy.</b> Understand what a company does. Would you use their product?",
+  "📌 <b>Emotions are the enemy.</b> Fear and greed cause bad decisions. Stick to a plan; don't panic-sell.",
+  "📌 <b>Cash is a position too.</b> Sometimes the best move is holding cash, waiting for better opportunities.",
+  "📌 <b>P/E Ratio:</b> Price-to-Earnings shows how expensive a stock is vs its profits. High P/E = pricey, Low P/E = potentially a bargain.",
+  "📌 <b>Earnings reports matter.</b> Companies report results every 3 months. Good earnings can send a stock up; bad ones can crash it.",
+  "📌 <b>Start small, learn lots.</b> The best time to make mistakes is with small — or fake — money. Exactly like this!",
+  "📌 <b>Index funds in real life.</b> Most professional fund managers can't beat the S&P 500 index over time. Boring but effective.",
+  "📌 <b>Dividends are a bonus.</b> Some companies pay you cash just for owning their stock — that's called a dividend.",
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let db = null;
+let cfg = null; // { apiKey (finnhub), startingBalance, firebaseConfig }
+let members = []; // array of member objects
+let portfolios = {}; // { memberId: { cash, holdings, history } }
+let activePlayer = null;
+let currentQuote = null;
+let tipIndex = Math.floor(Math.random() * TIPS.length);
+let newMemberColorIdx = 0;
+let unsubscribe = null;
+
+// ============================================================
+// STORAGE (config only in localStorage; data in Firebase)
+// ============================================================
+function saveConfig(c) { localStorage.setItem('fsc_cfg', JSON.stringify(c)); }
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem('fsc_cfg')); } catch(e) { return null; }
+}
+
+// ============================================================
+// FIREBASE OPS
+// ============================================================
+function dbRef(path) { return ref(db, path); }
+
+async function fbSet(path, val) { await set(dbRef(path), val); }
+async function fbGet(path) { const s = await get(dbRef(path)); return s.exists() ? s.val() : null; }
+async function fbUpdate(path, val) { await update(dbRef(path), val); }
+async function fbRemove(path) { await remove(dbRef(path)); }
+
+function fbListen(path, cb) {
+  return onValue(dbRef(path), snap => cb(snap.exists() ? snap.val() : null));
+}
+
+// ============================================================
+// FIREBASE INIT
+// ============================================================
+function initFirebase(firebaseConfig) {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+}
+
+// ============================================================
+// INIT MEMBER PORTFOLIO
+// ============================================================
+function blankPortfolio(balance) {
+  return { cash: balance, holdings: {}, history: [] };
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n, d=2) {
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d });
+}
+function fmtPct(n) {
+  return (n >= 0 ? '+' : '') + Number(n).toFixed(2) + '%';
+}
+function memberColor(m) { return AVATAR_COLORS[m.colorIdx % AVATAR_COLORS.length]; }
+function memberInitials(name) { return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function rankEmoji(i) { return ['🥇','🥈','🥉'][i] || (i+1)+''; }
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.className = 'show ' + type;
+  t.innerHTML = msg;
+  setTimeout(() => t.className='', 3200);
+}
+
+function setLoading(btn, on, label='') {
+  if (on) { btn.disabled=true; btn._orig=btn.innerHTML; btn.innerHTML=`<span class="spin">↻</span> ${label||'...'}`; }
+  else { btn.disabled=false; btn.innerHTML=btn._orig||label; }
+}
+
+// ============================================================
+// WIZARD
+// ============================================================
+let wizardStep = 1;
+
+function renderWizard() {
+  const el = document.getElementById('wizardContent');
+  if (wizardStep === 1) {
+    el.innerHTML = `
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+      <div class="modal-title">🚀 Family Stock Challenge</div>
+      <div class="modal-sub">A fun, real-data stock simulator for the whole family. Get live prices, trade stocks, and compete — all without risking real money.</div>
+      <div class="form-group">
+        <label class="form-label">Starting Balance Per Player</label>
+        <input class="form-input" id="w_balance" type="number" value="10000" min="1000" max="1000000">
+        <div class="hint">Each member starts with this much fictitious cash. Default: $10,000.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Finnhub API Key (for live stock prices)</label>
+        <input class="form-input" id="w_finnhub" placeholder="e.g. d1abc2xyz...">
+        <div class="hint">Free at <a href="https://finnhub.io" target="_blank">finnhub.io</a> → Register → Dashboard. 60 calls/min free tier is plenty.</div>
+      </div>
+      <button class="btn btn-primary btn-full" id="w1next">Next: Firebase Setup →</button>
+    `;
+    document.getElementById('w1next').onclick = () => {
+      const bal = parseInt(document.getElementById('w_balance').value);
+      const fk = document.getElementById('w_finnhub').value.trim();
+      if (!fk) { showToast('Enter your Finnhub API key','error'); return; }
+      if (!bal || bal < 100) { showToast('Enter a valid starting balance','error'); return; }
+      cfg = { finnhubKey: fk, startingBalance: bal };
+      wizardStep = 2;
+      renderWizard();
+    };
+  } else if (wizardStep === 2) {
+    el.innerHTML = `
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot"></div>
+      </div>
+      <div class="modal-title">🔥 Firebase Setup</div>
+      <div class="modal-sub">Firebase stores everyone's portfolios in the cloud so all three of you see the same data from any device — for free.</div>
+      <div class="firebase-step"><strong>Step 1:</strong> Go to <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent);">console.firebase.google.com</a> and sign in with a Google account.</div>
+      <div class="firebase-step"><strong>Step 2:</strong> Click <code>Add project</code> → name it <code>family-stocks</code> → disable Google Analytics → Create.</div>
+      <div class="firebase-step"><strong>Step 3:</strong> In the left sidebar click <code>Build → Realtime Database</code> → <code>Create database</code> → choose <code>Start in test mode</code> → Enable.</div>
+      <div class="firebase-step"><strong>Step 4:</strong> Go to <code>Project Settings</code> (gear icon) → scroll to <code>Your apps</code> → click the <code>&lt;/&gt;</code> web icon → register app → copy the <code>firebaseConfig</code> object values below.</div>
+      <div class="form-group" style="margin-top:16px;">
+        <label class="form-label">Firebase API Key</label>
+        <input class="form-input" id="fb_apiKey" placeholder="AIzaSy...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Auth Domain</label>
+        <input class="form-input" id="fb_authDomain" placeholder="family-stocks.firebaseapp.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Database URL</label>
+        <input class="form-input" id="fb_dbUrl" placeholder="https://family-stocks-default-rtdb.firebaseio.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Project ID</label>
+        <input class="form-input" id="fb_projectId" placeholder="family-stocks">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-ghost" id="w2back" style="flex:1;">← Back</button>
+        <button class="btn btn-primary" id="w2next" style="flex:2;">Next: Confirm Members →</button>
+      </div>
+    `;
+    document.getElementById('w2back').onclick = () => { wizardStep=1; renderWizard(); };
+    document.getElementById('w2next').onclick = () => {
+      const apiKey = document.getElementById('fb_apiKey').value.trim();
+      const authDomain = document.getElementById('fb_authDomain').value.trim();
+      const databaseURL = document.getElementById('fb_dbUrl').value.trim();
+      const projectId = document.getElementById('fb_projectId').value.trim();
+      if (!apiKey || !authDomain || !databaseURL || !projectId) {
+        showToast('Please fill in all Firebase fields','error'); return;
+      }
+      cfg.firebaseConfig = { apiKey, authDomain, databaseURL, projectId,
+        storageBucket: projectId+'.appspot.com', messagingSenderId:'', appId:'' };
+      wizardStep = 3;
+      renderWizard();
+    };
+  } else if (wizardStep === 3) {
+    el.innerHTML = `
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+      </div>
+      <div class="modal-title">👨‍👩‍👦 Starting Members</div>
+      <div class="modal-sub">These three members are set up by default. You can add more after launching.</div>
+      ${DEFAULT_MEMBERS.map(m => {
+        const c = AVATAR_COLORS[m.colorIdx];
+        return `<div class="member-item">
+          <div class="avatar" style="background:${c.bg};color:${c.color};">${m.emoji}</div>
+          <div class="member-info"><div class="member-name">${m.name}</div><div class="member-sub">Starting with ${fmt(cfg.startingBalance)}</div></div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-ghost" id="w3back" style="flex:1;">← Back</button>
+        <button class="btn btn-primary" id="w3launch" style="flex:2;">🚀 Launch Challenge!</button>
+      </div>
+    `;
+    document.getElementById('w3back').onclick = () => { wizardStep=2; renderWizard(); };
+    document.getElementById('w3launch').onclick = launchApp;
+  }
+}
+
+async function launchApp() {
+  const btn = document.getElementById('w3launch');
+  setLoading(btn, true, 'Connecting...');
+  try {
+    initFirebase(cfg.firebaseConfig);
+    // Write config to Firebase
+    await fbSet('config', { finnhubKey: cfg.finnhubKey, startingBalance: cfg.startingBalance });
+    // Write default members
+    for (const m of DEFAULT_MEMBERS) {
+      await fbSet('members/' + m.id, m);
+      await fbSet('portfolios/' + m.id, blankPortfolio(cfg.startingBalance));
+    }
+    saveConfig(cfg);
+    document.getElementById('setupOverlay').classList.add('hidden');
+    startApp();
+  } catch(e) {
+    showToast('Firebase connection failed. Check your config values.','error');
+    console.error(e);
+  } finally {
+    setLoading(btn, false, '🚀 Launch Challenge!');
+  }
+}
+
+// ============================================================
+// APP START
+// ============================================================
+async function startApp() {
+  // Load config from Firebase
+  const fbCfg = await fbGet('config');
+  if (fbCfg) {
+    cfg = cfg || {};
+    cfg.finnhubKey = cfg.finnhubKey || fbCfg.finnhubKey;
+    cfg.startingBalance = fbCfg.startingBalance;
+  }
+
+  // Live listener on entire DB
+  if (unsubscribe) unsubscribe();
+  unsubscribe = fbListen('/', data => {
+    if (!data) return;
+    members = data.members ? Object.values(data.members) : [];
+    portfolios = data.portfolios || {};
+    if (!activePlayer && members.length > 0) activePlayer = members[0].id;
+    renderAll();
+  });
+
+  updateMarketStatus();
+  setInterval(updateMarketStatus, 60000);
+  renderTip();
+  renderMarketSnapshot();
+  setInterval(renderMarketSnapshot, 120000);
+}
+
+// ============================================================
+// MARKET STATUS
+// ============================================================
+function updateMarketStatus() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const day = et.getDay();
+  const h = et.getHours() + et.getMinutes()/60;
+  const open = day>=1 && day<=5 && h>=9.5 && h<16;
+  const dot = document.getElementById('statusDot');
+  document.getElementById('statusText').textContent = open ? 'Market Open' : 'Market Closed';
+  dot.className = 'status-dot pulse' + (open ? '' : ' closed');
+}
+
+// ============================================================
+// FINNHUB
+// ============================================================
+async function fetchQuote(symbol) {
+  const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol.toUpperCase()}&token=${cfg.finnhubKey}`);
+  const d = await r.json();
+  if (!d || !d.c) throw new Error('Not found');
+  return { symbol: symbol.toUpperCase(), price:d.c, change:d.d, changePct:d.dp, high:d.h, low:d.l };
+}
+async function fetchProfile(symbol) {
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol.toUpperCase()}&token=${cfg.finnhubKey}`);
+    return await r.json();
+  } catch(e) { return {}; }
+}
+
+// ============================================================
+// RENDER PLAYER TABS
+// ============================================================
+function renderPlayerTabs() {
+  const bar = document.getElementById('playerBar');
+  bar.innerHTML = members.map(m => {
+    const c = memberColor(m);
+    const active = activePlayer === m.id;
+    return `<div class="player-tab ${active?'active':''}" data-pid="${m.id}">
+      <div class="avatar avatar-sm" style="background:${c.bg};color:${c.color};">${m.emoji||memberInitials(m.name)}</div>
+      ${m.name}
+    </div>`;
+  }).join('') +
+  `<div class="add-member-tab" id="addMemberTabBtn">＋ Add Member</div>`;
+
+  bar.querySelectorAll('.player-tab').forEach(el => {
+    el.addEventListener('click', () => { activePlayer = el.dataset.pid; renderAll(); });
+  });
+  document.getElementById('addMemberTabBtn')?.addEventListener('click', openAddMember);
+}
+
+// ============================================================
+// RENDER SUMMARY
+// ============================================================
+function renderSummary() {
+  const m = members.find(m=>m.id===activePlayer);
+  if (!m) return;
+  const p = portfolios[m.id];
+  if (!p) return;
+  document.getElementById('playerNameLabel').textContent = `${m.name}'s Portfolio`;
+  const holdingsValue = calcHoldingsValue(p);
+  const netWorth = p.cash + holdingsValue;
+  const gain = netWorth - cfg.startingBalance;
+  const gainPct = (gain / cfg.startingBalance) * 100;
+
+  document.getElementById('statCash').textContent = fmt(p.cash);
+  document.getElementById('statHoldings').textContent = fmt(holdingsValue);
+  document.getElementById('statNet').textContent = fmt(netWorth);
+
+  const gainEl = document.getElementById('statGain');
+  gainEl.textContent = (gain>=0?'+':'') + fmt(gain);
+  gainEl.className = 'stat-value ' + (gain>=0?'green':'red');
+  document.getElementById('statGainPct').textContent = fmtPct(gainPct);
+
+  const pct = netWorth > 0 ? Math.min(100,(holdingsValue/netWorth)*100) : 0;
+  document.getElementById('holdingsBar').style.width = pct + '%';
+}
+
+function calcHoldingsValue(p) {
+  if (!p || !p.holdings) return 0;
+  return Object.values(p.holdings).reduce((s,h) => s + (h.shares||0)*(h.lastPrice||h.avgCost||0), 0);
+}
+
+// ============================================================
+// RENDER HOLDINGS
+// ============================================================
+function renderHoldings() {
+  const p = portfolios[activePlayer];
+  const container = document.getElementById('holdingsContainer');
+  if (!p || !p.holdings) { container.innerHTML='<div class="empty"><div class="empty-icon">📈</div>No positions yet.</div>'; return; }
+  const active = Object.entries(p.holdings).filter(([,h])=>h.shares>0);
+  if (!active.length) { container.innerHTML='<div class="empty"><div class="empty-icon">📈</div>No positions yet. Look up a stock above!</div>'; return; }
+
+  const rows = active.map(([sym,h]) => {
+    const cur = h.lastPrice || h.avgCost;
+    const pnl = h.shares*(cur - h.avgCost);
+    const pnlPct = ((cur-h.avgCost)/h.avgCost)*100;
+    return `<tr>
+      <td><span class="ticker-badge">${sym}</span></td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;">${h.shares}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--muted);">${fmt(h.avgCost)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;">${fmt(cur)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:${pnl>=0?'var(--green)':'var(--red)'};">${pnl>=0?'+':''}${fmt(pnl)}<br><span style="font-size:10px;">${fmtPct(pnlPct)}</span></td>
+      <td style="text-align:right;"><button class="sell-mini" data-sym="${sym}">Sell</button></td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `<table class="holdings-table">
+    <thead><tr>
+      <th>Stock</th><th style="text-align:right">Shares</th>
+      <th style="text-align:right">Avg Cost</th><th style="text-align:right">Price</th>
+      <th style="text-align:right">P&L</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+
+  container.querySelectorAll('.sell-mini').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('tickerInput').value = btn.dataset.sym;
+      document.getElementById('lookupBtn').click();
+      setTimeout(() => {
+        document.getElementById('qtyInput').value = p.holdings[btn.dataset.sym]?.shares || 1;
+      }, 900);
+    });
+  });
+}
+
+// ============================================================
+// RENDER HISTORY
+// ============================================================
+function renderHistory() {
+  const p = portfolios[activePlayer];
+  const container = document.getElementById('historyContainer');
+  if (!p?.history?.length) { container.innerHTML='<div class="empty"><div class="empty-icon">📋</div>No trades yet.</div>'; return; }
+  const rows = [...p.history].reverse().slice(0,50).map(t => `
+    <div class="hist-row">
+      <span class="hist-badge ${t.action}">${t.action}</span>
+      <strong>${t.symbol}</strong> — ${t.shares} share${t.shares!==1?'s':''} @ ${fmt(t.price)}
+      <span style="float:right;font-family:'JetBrains Mono',monospace;color:${t.action==='BUY'?'var(--red)':'var(--green)'};">${t.action==='BUY'?'-':'+'}${fmt(t.total)}</span>
+      <div class="hist-meta">${new Date(t.ts).toLocaleString()} · Balance after: ${fmt(t.cashAfter)}</div>
+    </div>
+  `).join('');
+  container.innerHTML = rows;
+}
+
+// ============================================================
+// RENDER LEADERBOARD
+// ============================================================
+function renderLeaderboard() {
+  const entries = members.map(m => {
+    const p = portfolios[m.id];
+    const holdingsValue = p ? calcHoldingsValue(p) : 0;
+    const netWorth = p ? p.cash + holdingsValue : cfg?.startingBalance || 10000;
+    const gain = netWorth - (cfg?.startingBalance || 10000);
+    const gainPct = (gain/(cfg?.startingBalance||10000))*100;
+    return { m, netWorth, gain, gainPct };
+  }).sort((a,b)=>b.netWorth-a.netWorth);
+
+  const container = document.getElementById('leaderboard');
+  container.innerHTML = entries.map((e,i) => {
+    const c = memberColor(e.m);
+    return `<div class="lb-row">
+      <div class="lb-rank">${rankEmoji(i)}</div>
+      <div class="avatar" style="background:${c.bg};color:${c.color};font-size:16px;">${e.m.emoji||memberInitials(e.m.name)}</div>
+      <div class="lb-info">
+        <div class="lb-name">${e.m.name}</div>
+        <div class="lb-sub">${e.gainPct>=0?'▲':'▼'} ${Math.abs(e.gainPct).toFixed(2)}% return</div>
+      </div>
+      <div class="lb-value">
+        <div class="lb-total">${fmt(e.netWorth)}</div>
+        <div class="lb-gain" style="color:${e.gain>=0?'var(--green)':'var(--red)'};">${e.gain>=0?'+':''}${fmt(e.gain)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// RENDER TIP
+// ============================================================
+function renderTip() {
+  document.getElementById('tipText').innerHTML = TIPS[tipIndex % TIPS.length];
+}
+
+// ============================================================
+// RENDER MARKET SNAPSHOT
+// ============================================================
+async function renderMarketSnapshot() {
+  if (!cfg?.finnhubKey) return;
+  const container = document.getElementById('marketSnapshot');
+  try {
+    const quotes = await Promise.all(MARKET_SYMBOLS.map(s => fetchQuote(s).catch(()=>null)));
+    container.innerHTML = MARKET_SYMBOLS.map((sym,i)=>{
+      const q = quotes[i]; if(!q) return '';
+      return `<div class="snap-row">
+        <span style="font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--accent);">${sym}</span>
+        <span style="font-family:'JetBrains Mono',monospace;">${fmt(q.price)}</span>
+        <span style="color:${q.change>=0?'var(--green)':'var(--red)'};">${q.change>=0?'▲':'▼'} ${Math.abs(q.changePct||0).toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML='<span style="color:var(--muted);">Unable to load.</span>';
+  }
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  renderPlayerTabs();
+  renderSummary();
+  renderHoldings();
+  renderHistory();
+  renderLeaderboard();
+}
+
+// ============================================================
+// LOOKUP
+// ============================================================
+async function lookupStock() {
+  const input = document.getElementById('tickerInput');
+  const symbol = input.value.toUpperCase().trim();
+  if (!symbol) { showToast('Enter a stock symbol','error'); return; }
+  const btn = document.getElementById('lookupBtn');
+  setLoading(btn, true, 'Fetching');
+  try {
+    const [quote, profile] = await Promise.all([fetchQuote(symbol), fetchProfile(symbol)]);
+    currentQuote = quote;
+
+    const holding = portfolios[activePlayer]?.holdings?.[symbol];
+    document.getElementById('qTicker').textContent = symbol;
+    document.getElementById('qName').textContent = profile.name || symbol;
+    document.getElementById('qExchange').textContent = profile.exchange || '';
+    document.getElementById('qPrice').textContent = fmt(quote.price);
+    const ce = document.getElementById('qChange');
+    ce.className = 'quote-change ' + (quote.change>=0?'up':'down');
+    ce.textContent = `${quote.change>=0?'▲':'▼'} ${fmt(Math.abs(quote.change))} (${fmtPct(quote.changePct||0)}) today  ·  You own: ${holding?.shares||0} shares`;
+    document.getElementById('quoteResult').classList.add('visible');
+
+    // Update lastPrice in Firebase
+    if (holding) {
+      await fbUpdate(`portfolios/${activePlayer}/holdings/${symbol}`, { lastPrice: quote.price });
+    }
+    updateTradeCost();
+  } catch(e) {
+    showToast(`Could not find "${symbol}". Check the symbol.`,'error');
+  } finally {
+    setLoading(btn, false, 'Look Up');
+  }
+}
+
+function updateTradeCost() {
+  if (!currentQuote) return;
+  const qty = parseInt(document.getElementById('qtyInput').value)||0;
+  const cost = qty * currentQuote.price;
+  const p = portfolios[activePlayer];
+  document.getElementById('tradeCost').innerHTML =
+    `${qty} × ${fmt(currentQuote.price)} = <span>${fmt(cost)}</span> &nbsp;|&nbsp; Cash: ${fmt(p?.cash||0)}`;
+}
+
+// ============================================================
+// BUY
+// ============================================================
+async function executeBuy() {
+  if (!currentQuote) { showToast('Look up a stock first','error'); return; }
+  const qty = parseInt(document.getElementById('qtyInput').value);
+  if (!qty || qty<1) { showToast('Enter a valid quantity','error'); return; }
+  const p = portfolios[activePlayer];
+  const total = qty * currentQuote.price;
+  if (total > p.cash) { showToast(`Not enough cash! Need ${fmt(total)}, have ${fmt(p.cash)}`,'error'); return; }
+
+  const sym = currentQuote.symbol;
+  const newCash = p.cash - total;
+  const h = p.holdings?.[sym] || { shares:0, avgCost:0, lastPrice:currentQuote.price };
+  const oldTotal = h.shares * h.avgCost;
+  const newShares = h.shares + qty;
+  const newAvg = (oldTotal + total) / newShares;
+
+  const trade = { action:'BUY', symbol:sym, shares:qty, price:currentQuote.price, total, cashAfter:newCash, ts:Date.now() };
+  const newHistory = [...(p.history||[]), trade];
+
+  await fbUpdate(`portfolios/${activePlayer}`, {
+    cash: newCash,
+    [`holdings/${sym}/shares`]: newShares,
+    [`holdings/${sym}/avgCost`]: newAvg,
+    [`holdings/${sym}/lastPrice`]: currentQuote.price,
+  });
+  await fbSet(`portfolios/${activePlayer}/history`, newHistory);
+
+  showToast(`✅ Bought ${qty} share${qty!==1?'s':''} of ${sym} for ${fmt(total)}!`);
+}
+
+// ============================================================
+// SELL
+// ============================================================
+async function executeSell() {
+  if (!currentQuote) { showToast('Look up a stock first','error'); return; }
+  const qty = parseInt(document.getElementById('qtyInput').value);
+  if (!qty || qty<1) { showToast('Enter a valid quantity','error'); return; }
+  const sym = currentQuote.symbol;
+  const p = portfolios[activePlayer];
+  const h = p?.holdings?.[sym];
+  if (!h || h.shares < qty) { showToast(`You only own ${h?.shares||0} share${(h?.shares||0)!==1?'s':''} of ${sym}`,'error'); return; }
+
+  const total = qty * currentQuote.price;
+  const pnl = total - (qty * h.avgCost);
+  const newCash = p.cash + total;
+  const newShares = h.shares - qty;
+
+  const trade = { action:'SELL', symbol:sym, shares:qty, price:currentQuote.price, total, pnl, cashAfter:newCash, ts:Date.now() };
+  const newHistory = [...(p.history||[]), trade];
+
+  await fbUpdate(`portfolios/${activePlayer}`, {
+    cash: newCash,
+    [`holdings/${sym}/shares`]: newShares,
+    [`holdings/${sym}/lastPrice`]: currentQuote.price,
+  });
+  await fbSet(`portfolios/${activePlayer}/history`, newHistory);
+
+  showToast(pnl>=0
+    ? `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Profit: +${fmt(pnl)} 🎉`
+    : `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Loss: ${fmt(pnl)} 📉`
+  );
+}
+
+// ============================================================
+// ADD MEMBER
+// ============================================================
+function openAddMember() {
+  newMemberColorIdx = 3; // default to amber
+  document.getElementById('newMemberName').value = '';
+  document.getElementById('newMemberEmoji').value = '';
+  renderSwatches('newMemberSwatches', () => newMemberColorIdx, i => { newMemberColorIdx=i; renderSwatches('newMemberSwatches', ()=>newMemberColorIdx, arguments.callee); });
+  document.getElementById('addMemberOverlay').classList.remove('hidden');
+}
+
+function renderSwatches(containerId, getIdx, onSelect) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = AVATAR_COLORS.map((c,i) =>
+    `<div class="swatch ${getIdx()===i?'selected':''}" data-i="${i}" style="background:${c.color};"></div>`
+  ).join('');
+  container.querySelectorAll('.swatch').forEach(s => {
+    s.addEventListener('click', () => { onSelect(parseInt(s.dataset.i)); });
+  });
+}
+
+document.getElementById('addMemberCancelBtn').addEventListener('click', () => {
+  document.getElementById('addMemberOverlay').classList.add('hidden');
+});
+
+document.getElementById('addMemberSaveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newMemberName').value.trim();
+  const emoji = document.getElementById('newMemberEmoji').value.trim() || memberInitials(name||'?');
+  if (!name) { showToast('Enter a name','error'); return; }
+
+  const btn = document.getElementById('addMemberSaveBtn');
+  setLoading(btn, true, 'Adding...');
+  try {
+    const id = 'member_' + Date.now();
+    const member = { id, name, initials: memberInitials(name), colorIdx: newMemberColorIdx, emoji, isCore: false };
+    await fbSet('members/' + id, member);
+    await fbSet('portfolios/' + id, blankPortfolio(cfg.startingBalance));
+    activePlayer = id;
+    document.getElementById('addMemberOverlay').classList.add('hidden');
+    showToast(`${name} has joined the challenge! 🎉`);
+  } catch(e) {
+    showToast('Error adding member','error');
+  } finally {
+    setLoading(btn, false, 'Add Player');
+  }
+});
+
+// ============================================================
+// MANAGE MEMBERS
+// ============================================================
+function openManageMembers() {
+  renderManageList();
+  document.getElementById('manageMembersOverlay').classList.remove('hidden');
+}
+
+function renderManageList() {
+  const container = document.getElementById('manageMembersList');
+  container.innerHTML = members.map(m => {
+    const c = memberColor(m);
+    const p = portfolios[m.id];
+    const nw = p ? p.cash + calcHoldingsValue(p) : cfg.startingBalance;
+    return `<div class="member-item">
+      <div class="avatar" style="background:${c.bg};color:${c.color};font-size:16px;">${m.emoji||memberInitials(m.name)}</div>
+      <div class="member-info">
+        <div class="member-name">${m.name} ${m.isCore?'<span style="font-size:10px;color:var(--muted);font-weight:400;">(core)</span>':''}</div>
+        <div class="member-sub">Net worth: ${fmt(nw)}</div>
+      </div>
+      ${!m.isCore ? `<button class="manage-btn" data-mid="${m.id}">Remove</button>` : ''}
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.manage-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mid = btn.dataset.mid;
+      const mem = members.find(m=>m.id===mid);
+      if (!confirm(`Remove ${mem?.name} and all their trade data?`)) return;
+      await fbRemove('members/' + mid);
+      await fbRemove('portfolios/' + mid);
+      if (activePlayer === mid) activePlayer = members.find(m=>m.id!==mid)?.id || null;
+      renderManageList();
+      showToast(`${mem?.name} removed.`,'info');
+    });
+  });
+}
+
+document.getElementById('manageMembersCloseBtn').addEventListener('click', () => {
+  document.getElementById('manageMembersOverlay').classList.add('hidden');
+});
+document.getElementById('manageBtn').addEventListener('click', openManageMembers);
+
+// ============================================================
+// RESET
+// ============================================================
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('resetOverlay').classList.remove('hidden');
+});
+document.getElementById('resetCancelBtn').addEventListener('click', () => {
+  document.getElementById('resetOverlay').classList.add('hidden');
+});
+document.getElementById('resetConfirmBtn').addEventListener('click', async () => {
+  try {
+    await fbRemove('/');
+    localStorage.removeItem('fsc_cfg');
+    location.reload();
+  } catch(e) { showToast('Reset failed','error'); }
+});
+
+// ============================================================
+// EVENT WIRING
+// ============================================================
+document.getElementById('lookupBtn').addEventListener('click', lookupStock);
+document.getElementById('tickerInput').addEventListener('keydown', e => { if(e.key==='Enter') lookupStock(); });
+document.getElementById('qtyInput').addEventListener('input', updateTradeCost);
+document.getElementById('buyBtn').addEventListener('click', executeBuy);
+document.getElementById('sellBtn').addEventListener('click', executeSell);
+document.getElementById('nextTipBtn').addEventListener('click', () => { tipIndex++; renderTip(); });
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// BOOT
+// ============================================================
+window.addEventListener('load', async () => {
+  const saved = loadConfig();
+  if (saved?.firebaseConfig) {
+    cfg = saved;
+    try {
+      initFirebase(cfg.firebaseConfig);
+      // Check if DB has data
+      const exists = await fbGet('config');
+      if (exists) {
+        document.getElementById('setupOverlay').classList.add('hidden');
+        startApp();
+        return;
+      }
+    } catch(e) { console.warn('Firebase reconnect failed', e); }
+  }
+  // Show wizard
+  renderWizard();
+});
+</script>
+</body>
+</html>
