@@ -217,7 +217,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 <div class="overlay hidden" id="addMemberOverlay">
   <div class="modal" style="max-width:380px;">
     <div class="modal-title">Add Member</div>
-    <div class="modal-sub">Add a new player to the challenge.</div>
+    <div class="modal-sub">Add a new player to the challenge. They'll create their own secret PIN on their very first trade.</div>
     <div class="form-group">
       <label class="form-label">Name</label>
       <input class="form-input" id="newMemberName" placeholder="e.g. Grandpa Joe">
@@ -237,11 +237,31 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
   </div>
 </div>
 
+<!-- ==================== PIN MODAL ==================== -->
+<div class="overlay hidden" id="pinOverlay">
+  <div class="modal" style="max-width:340px;text-align:center;">
+    <div style="font-size:36px;margin-bottom:8px;" id="pinAvatar"></div>
+    <div class="modal-title" id="pinTitle">Enter PIN to Trade</div>
+    <div class="modal-sub" id="pinSub">Enter <b id="pinPlayerName"></b>'s 4-digit PIN to buy or sell.</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;" id="pinDots">
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto 16px;">
+      ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k=>`<button class="pin-key btn" data-key="${k}" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);${k===''?'visibility:hidden;':''}">${k}</button>`).join('')}
+    </div>
+    <div id="pinError" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:12px;"></div>
+    <button class="btn btn-ghost" id="pinCancelBtn" style="width:100%;">Cancel</button>
+  </div>
+</div>
+
 <!-- ==================== MANAGE MEMBERS MODAL ==================== -->
 <div class="overlay hidden" id="manageMembersOverlay">
   <div class="modal" style="max-width:400px;">
     <div class="modal-title">Manage Members</div>
-    <div class="modal-sub">Remove members or adjust the challenge. Core members (Dad, Pam, Caden) cannot be deleted.</div>
+    <div class="modal-sub">Each player can change their own PIN here. Core members (Dad, Pam, Caden) cannot be removed.</div>
     <div id="manageMembersList"></div>
     <div style="margin-top:20px;">
       <button class="btn btn-ghost btn-full" id="manageMembersCloseBtn">Done</button>
@@ -591,12 +611,15 @@ function renderWizard() {
         <div class="step-dot done"></div>
       </div>
       <div class="modal-title">👨‍👩‍👦 Starting Members</div>
-      <div class="modal-sub">These three members are set up by default. You can add more after launching.</div>
+      <div class="modal-sub">These three are set up by default. Each player will be prompted to <b>create their own secret PIN</b> the first time they make a trade — so only they know it. PINs can be changed anytime via the Members menu.</div>
       ${DEFAULT_MEMBERS.map(m => {
         const c = AVATAR_COLORS[m.colorIdx];
         return `<div class="member-item">
           <div class="avatar" style="background:${c.bg};color:${c.color};">${m.emoji}</div>
-          <div class="member-info"><div class="member-name">${m.name}</div><div class="member-sub">Starting with ${fmt(cfg.startingBalance)}</div></div>
+          <div class="member-info">
+            <div class="member-name">${m.name}</div>
+            <div class="member-sub">Starting with ${fmt(cfg.startingBalance)} · PIN set on first trade</div>
+          </div>
         </div>`;
       }).join('')}
       <div style="display:flex;gap:8px;margin-top:20px;">
@@ -614,11 +637,9 @@ async function launchApp() {
   setLoading(btn, true, 'Connecting...');
   try {
     initFirebase(cfg.firebaseConfig);
-    // Write config to Firebase
     await fbSet('config', { finnhubKey: cfg.finnhubKey, startingBalance: cfg.startingBalance });
-    // Write default members
     for (const m of DEFAULT_MEMBERS) {
-      await fbSet('members/' + m.id, m);
+      await fbSet('members/' + m.id, { ...m, pin: null }); // PIN set by each player on first trade
       await fbSet('portfolios/' + m.id, blankPortfolio(cfg.startingBalance));
     }
     saveConfig(cfg);
@@ -921,35 +942,188 @@ function updateTradeCost() {
 }
 
 // ============================================================
+// PIN SYSTEM
+// ============================================================
+let pinEntry = '';
+let pinCallback = null;
+let pinMode = 'verify'; // 'verify' | 'create' | 'confirm' | 'change_verify' | 'change_new' | 'change_confirm'
+let pinNewTemp = '';    // stores first entry during create/confirm flow
+let pinTargetMember = null; // member id being PIN'd
+
+function openPinModal(memberId, onSuccess) {
+  const m = members.find(m => m.id === memberId);
+  if (!m) return;
+  pinTargetMember = memberId;
+  pinCallback = onSuccess;
+  pinEntry = '';
+  pinNewTemp = '';
+
+  if (!m.pin) {
+    pinMode = 'create';
+    setPinUI(m, '🔐 Create Your Trading PIN', 'This is your first trade! Choose a secret 4-digit PIN. Only you will know it.');
+  } else {
+    pinMode = 'verify';
+    setPinUI(m, '🔒 Enter PIN to Trade', `Enter <b>${m.name}</b>'s PIN to confirm this trade.`);
+  }
+  updatePinDots();
+  document.getElementById('pinOverlay').classList.remove('hidden');
+}
+
+function openChangePinModal(memberId) {
+  const m = members.find(m => m.id === memberId);
+  if (!m) return;
+  pinTargetMember = memberId;
+  pinCallback = null;
+  pinEntry = '';
+  pinNewTemp = '';
+
+  if (!m.pin) {
+    pinMode = 'change_new';
+    setPinUI(m, '🔐 Set Your PIN', 'Choose a secret 4-digit PIN. Only you will know it.');
+  } else {
+    pinMode = 'change_verify';
+    setPinUI(m, '🔑 Change PIN', `Enter <b>${m.name}</b>'s current PIN to continue.`);
+  }
+  updatePinDots();
+  document.getElementById('pinOverlay').classList.remove('hidden');
+}
+
+function setPinUI(m, title, sub) {
+  const c = memberColor(m);
+  document.getElementById('pinAvatar').textContent = m.emoji || memberInitials(m.name);
+  document.getElementById('pinAvatar').style.color = c.color;
+  document.getElementById('pinTitle').textContent = title.replace(/<[^>]+>/g,'');
+  document.getElementById('pinSub').innerHTML = sub;
+  document.getElementById('pinError').textContent = '';
+}
+
+function updatePinDots() {
+  document.querySelectorAll('.pin-dot').forEach((dot, i) => {
+    dot.style.background = i < pinEntry.length ? 'var(--accent)' : 'transparent';
+    dot.style.borderColor = i < pinEntry.length ? 'var(--accent)' : 'var(--border2)';
+  });
+}
+
+async function handlePinKey(key) {
+  if (key === '⌫') { pinEntry = pinEntry.slice(0,-1); updatePinDots(); return; }
+  if (pinEntry.length >= 4) return;
+  pinEntry += key;
+  updatePinDots();
+  if (pinEntry.length < 4) return;
+
+  const m = members.find(m => m.id === pinTargetMember);
+
+  if (pinMode === 'verify') {
+    if (pinEntry === String(m?.pin)) {
+      document.getElementById('pinOverlay').classList.add('hidden');
+      const cb = pinCallback; pinCallback = null; pinEntry = '';
+      if (cb) cb();
+    } else {
+      pinFail('❌ Wrong PIN. Try again.');
+    }
+
+  } else if (pinMode === 'create') {
+    pinNewTemp = pinEntry;
+    pinEntry = '';
+    pinMode = 'confirm';
+    setPinUI(m, '✅ Confirm Your PIN', 'Enter the same PIN again to confirm.');
+    updatePinDots();
+
+  } else if (pinMode === 'confirm') {
+    if (pinEntry === pinNewTemp) {
+      await fbUpdate('members/' + pinTargetMember, { pin: pinEntry });
+      showToast(`PIN set! Remember it — it's yours alone. 🔐`);
+      document.getElementById('pinOverlay').classList.add('hidden');
+      const cb = pinCallback; pinCallback = null; pinEntry = ''; pinNewTemp = '';
+      if (cb) cb();
+    } else {
+      pinNewTemp = '';
+      pinMode = 'create';
+      setPinUI(m, '🔐 Create Your PIN', 'PINs didn\'t match. Try again — choose your 4-digit PIN.');
+      pinFail('❌ PINs didn\'t match. Start over.');
+    }
+
+  } else if (pinMode === 'change_verify') {
+    if (pinEntry === String(m?.pin)) {
+      pinEntry = ''; pinNewTemp = '';
+      pinMode = 'change_new';
+      setPinUI(m, '🔐 Enter New PIN', 'Choose your new 4-digit PIN.');
+      updatePinDots();
+    } else {
+      pinFail('❌ Wrong current PIN.');
+    }
+
+  } else if (pinMode === 'change_new') {
+    pinNewTemp = pinEntry;
+    pinEntry = '';
+    pinMode = 'change_confirm';
+    setPinUI(m, '✅ Confirm New PIN', 'Enter your new PIN one more time.');
+    updatePinDots();
+
+  } else if (pinMode === 'change_confirm') {
+    if (pinEntry === pinNewTemp) {
+      await fbUpdate('members/' + pinTargetMember, { pin: pinEntry });
+      showToast(`✅ PIN updated successfully!`);
+      document.getElementById('pinOverlay').classList.add('hidden');
+      pinEntry = ''; pinNewTemp = '';
+    } else {
+      pinNewTemp = '';
+      pinMode = 'change_new';
+      setPinUI(m, '🔐 Enter New PIN', 'PINs didn\'t match. Choose your new PIN again.');
+      pinFail('❌ PINs didn\'t match. Try again.');
+    }
+  }
+}
+
+function pinFail(msg) {
+  document.getElementById('pinError').textContent = msg;
+  setTimeout(() => {
+    pinEntry = '';
+    updatePinDots();
+    document.getElementById('pinError').textContent = '';
+  }, 1000);
+}
+
+document.querySelectorAll('.pin-key').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.key;
+    if (k !== '') handlePinKey(k);
+  });
+});
+
+document.getElementById('pinCancelBtn').addEventListener('click', () => {
+  document.getElementById('pinOverlay').classList.add('hidden');
+  pinEntry = ''; pinNewTemp = ''; pinCallback = null;
+});
+
+// ============================================================
 // BUY
 // ============================================================
 async function executeBuy() {
   if (!currentQuote) { showToast('Look up a stock first','error'); return; }
   const qty = parseInt(document.getElementById('qtyInput').value);
   if (!qty || qty<1) { showToast('Enter a valid quantity','error'); return; }
-  const p = portfolios[activePlayer];
-  const total = qty * currentQuote.price;
-  if (total > p.cash) { showToast(`Not enough cash! Need ${fmt(total)}, have ${fmt(p.cash)}`,'error'); return; }
-
-  const sym = currentQuote.symbol;
-  const newCash = p.cash - total;
-  const h = p.holdings?.[sym] || { shares:0, avgCost:0, lastPrice:currentQuote.price };
-  const oldTotal = h.shares * h.avgCost;
-  const newShares = h.shares + qty;
-  const newAvg = (oldTotal + total) / newShares;
-
-  const trade = { action:'BUY', symbol:sym, shares:qty, price:currentQuote.price, total, cashAfter:newCash, ts:Date.now() };
-  const newHistory = [...(p.history||[]), trade];
-
-  await fbUpdate(`portfolios/${activePlayer}`, {
-    cash: newCash,
-    [`holdings/${sym}/shares`]: newShares,
-    [`holdings/${sym}/avgCost`]: newAvg,
-    [`holdings/${sym}/lastPrice`]: currentQuote.price,
+  openPinModal(activePlayer, async () => {
+    const p = portfolios[activePlayer];
+    const total = qty * currentQuote.price;
+    if (total > p.cash) { showToast(`Not enough cash! Need ${fmt(total)}, have ${fmt(p.cash)}`,'error'); return; }
+    const sym = currentQuote.symbol;
+    const newCash = p.cash - total;
+    const h = p.holdings?.[sym] || { shares:0, avgCost:0, lastPrice:currentQuote.price };
+    const oldTotal = h.shares * h.avgCost;
+    const newShares = h.shares + qty;
+    const newAvg = (oldTotal + total) / newShares;
+    const trade = { action:'BUY', symbol:sym, shares:qty, price:currentQuote.price, total, cashAfter:newCash, ts:Date.now() };
+    const newHistory = [...(p.history||[]), trade];
+    await fbUpdate(`portfolios/${activePlayer}`, {
+      cash: newCash,
+      [`holdings/${sym}/shares`]: newShares,
+      [`holdings/${sym}/avgCost`]: newAvg,
+      [`holdings/${sym}/lastPrice`]: currentQuote.price,
+    });
+    await fbSet(`portfolios/${activePlayer}/history`, newHistory);
+    showToast(`✅ Bought ${qty} share${qty!==1?'s':''} of ${sym} for ${fmt(total)}!`);
   });
-  await fbSet(`portfolios/${activePlayer}/history`, newHistory);
-
-  showToast(`✅ Bought ${qty} share${qty!==1?'s':''} of ${sym} for ${fmt(total)}!`);
 }
 
 // ============================================================
@@ -963,33 +1137,31 @@ async function executeSell() {
   const p = portfolios[activePlayer];
   const h = p?.holdings?.[sym];
   if (!h || h.shares < qty) { showToast(`You only own ${h?.shares||0} share${(h?.shares||0)!==1?'s':''} of ${sym}`,'error'); return; }
-
-  const total = qty * currentQuote.price;
-  const pnl = total - (qty * h.avgCost);
-  const newCash = p.cash + total;
-  const newShares = h.shares - qty;
-
-  const trade = { action:'SELL', symbol:sym, shares:qty, price:currentQuote.price, total, pnl, cashAfter:newCash, ts:Date.now() };
-  const newHistory = [...(p.history||[]), trade];
-
-  await fbUpdate(`portfolios/${activePlayer}`, {
-    cash: newCash,
-    [`holdings/${sym}/shares`]: newShares,
-    [`holdings/${sym}/lastPrice`]: currentQuote.price,
+  openPinModal(activePlayer, async () => {
+    const total = qty * currentQuote.price;
+    const pnl = total - (qty * h.avgCost);
+    const newCash = p.cash + total;
+    const newShares = h.shares - qty;
+    const trade = { action:'SELL', symbol:sym, shares:qty, price:currentQuote.price, total, pnl, cashAfter:newCash, ts:Date.now() };
+    const newHistory = [...(p.history||[]), trade];
+    await fbUpdate(`portfolios/${activePlayer}`, {
+      cash: newCash,
+      [`holdings/${sym}/shares`]: newShares,
+      [`holdings/${sym}/lastPrice`]: currentQuote.price,
+    });
+    await fbSet(`portfolios/${activePlayer}/history`, newHistory);
+    showToast(pnl>=0
+      ? `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Profit: +${fmt(pnl)} 🎉`
+      : `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Loss: ${fmt(pnl)} 📉`
+    );
   });
-  await fbSet(`portfolios/${activePlayer}/history`, newHistory);
-
-  showToast(pnl>=0
-    ? `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Profit: +${fmt(pnl)} 🎉`
-    : `Sold ${qty} share${qty!==1?'s':''} of ${sym}. Loss: ${fmt(pnl)} 📉`
-  );
 }
 
 // ============================================================
 // ADD MEMBER
 // ============================================================
 function openAddMember() {
-  newMemberColorIdx = 3; // default to amber
+  newMemberColorIdx = 3;
   document.getElementById('newMemberName').value = '';
   document.getElementById('newMemberEmoji').value = '';
   renderSwatches('newMemberSwatches', () => newMemberColorIdx, i => { newMemberColorIdx=i; renderSwatches('newMemberSwatches', ()=>newMemberColorIdx, arguments.callee); });
@@ -1019,12 +1191,12 @@ document.getElementById('addMemberSaveBtn').addEventListener('click', async () =
   setLoading(btn, true, 'Adding...');
   try {
     const id = 'member_' + Date.now();
-    const member = { id, name, initials: memberInitials(name), colorIdx: newMemberColorIdx, emoji, isCore: false };
+    const member = { id, name, initials: memberInitials(name), colorIdx: newMemberColorIdx, emoji, pin: null, isCore: false };
     await fbSet('members/' + id, member);
     await fbSet('portfolios/' + id, blankPortfolio(cfg.startingBalance));
     activePlayer = id;
     document.getElementById('addMemberOverlay').classList.add('hidden');
-    showToast(`${name} has joined the challenge! 🎉`);
+    showToast(`${name} has joined the challenge! They'll set their own PIN on their first trade. 🎉`);
   } catch(e) {
     showToast('Error adding member','error');
   } finally {
@@ -1046,17 +1218,28 @@ function renderManageList() {
     const c = memberColor(m);
     const p = portfolios[m.id];
     const nw = p ? p.cash + calcHoldingsValue(p) : cfg.startingBalance;
-    return `<div class="member-item">
+    const hasPin = m.pin ? '🔒 PIN set' : '⚠️ No PIN yet';
+    return `<div class="member-item" style="flex-wrap:wrap;gap:8px;">
       <div class="avatar" style="background:${c.bg};color:${c.color};font-size:16px;">${m.emoji||memberInitials(m.name)}</div>
       <div class="member-info">
         <div class="member-name">${m.name} ${m.isCore?'<span style="font-size:10px;color:var(--muted);font-weight:400;">(core)</span>':''}</div>
-        <div class="member-sub">Net worth: ${fmt(nw)}</div>
+        <div class="member-sub">Net worth: ${fmt(nw)} · ${hasPin}</div>
       </div>
-      ${!m.isCore ? `<button class="manage-btn" data-mid="${m.id}">Remove</button>` : ''}
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="manage-btn change-pin-btn" data-mid="${m.id}" style="border-color:var(--accent);color:var(--accent);">${m.pin ? 'Change PIN' : 'Set PIN'}</button>
+        ${!m.isCore ? `<button class="manage-btn remove-btn" data-mid="${m.id}">Remove</button>` : ''}
+      </div>
     </div>`;
   }).join('');
 
-  container.querySelectorAll('.manage-btn').forEach(btn => {
+  container.querySelectorAll('.change-pin-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('manageMembersOverlay').classList.add('hidden');
+      openChangePinModal(btn.dataset.mid);
+    });
+  });
+
+  container.querySelectorAll('.remove-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const mid = btn.dataset.mid;
       const mem = members.find(m=>m.id===mid);
