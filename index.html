@@ -244,7 +244,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 
 <!-- SETUP WIZARD -->
 <div class="overlay" id="setupOverlay">
-  <div class="modal"><div id="wizardContent"></div></div>
+  <div class="modal"><div id="wizardContent"><div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:28px;margin-bottom:12px;">📈</div><div style="font-size:16px;font-weight:600;color:var(--text);">Family Stock Challenge</div><div style="margin-top:8px;font-size:14px;">Loading...</div></div></div></div>
 </div>
 
 <!-- ADD MEMBER -->
@@ -452,6 +452,7 @@ const EMBEDDED = {
     appId:             '',
   }
 };
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -653,6 +654,34 @@ window.addEventListener('load',async()=>{
 
   // PATH 3: First time, no config — show wizard
   renderWizard();
+});
+
+// Global error handler — catches any uncaught errors and shows them
+// instead of a blank black screen
+window.addEventListener('error', function(e) {
+  const el = document.getElementById('wizardContent');
+  if (el) {
+    el.innerHTML = '<div style="padding:20px;">' +
+      '<div style="font-size:18px;font-weight:700;color:#ef4444;margin-bottom:8px;">⚠️ App Error</div>' +
+      '<div style="font-size:13px;color:#7a8299;margin-bottom:12px;">An error prevented the app from loading. Check that your EMBEDDED values are correct.</div>' +
+      '<div style="font-family:monospace;font-size:12px;background:#1d2230;padding:12px;border-radius:8px;color:#e8eaf0;word-break:break-all;">' + 
+      (e.message||'Unknown error') + '<br><br>' + (e.filename ? e.filename + ':' + e.lineno : '') + '</div>' +
+      '</div>';
+    document.getElementById('setupOverlay').classList.remove('hidden');
+  }
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+  const el = document.getElementById('wizardContent');
+  if (el && document.getElementById('setupOverlay').style.display !== 'none') {
+    el.innerHTML = '<div style="padding:20px;">' +
+      '<div style="font-size:18px;font-weight:700;color:#ef4444;margin-bottom:8px;">⚠️ Connection Error</div>' +
+      '<div style="font-size:13px;color:#7a8299;margin-bottom:12px;">Could not connect to Firebase. Check that your EMBEDDED values are filled in correctly, especially the databaseURL.</div>' +
+      '<div style="font-family:monospace;font-size:12px;background:#1d2230;padding:12px;border-radius:8px;color:#e8eaf0;word-break:break-all;">' + 
+      String(e.reason||'Unknown rejection') + '</div>' +
+      '</div>';
+    document.getElementById('setupOverlay').classList.remove('hidden');
+  }
 });
 
 // ============================================================
