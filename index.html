@@ -74,7 +74,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .member-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
 .member-item:last-child{border-bottom:none;}
 .avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;}
-.avatar-sm{width:28px;height:28px;font-size:11px;}
+.avatar-sm{width:40px;height:40px;font-size:16px;}
 .member-info{flex:1;}
 .member-name{font-weight:600;font-size:15px;}
 .member-sub{font-size:12px;color:var(--muted);margin-top:1px;}
@@ -569,7 +569,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 // ============================================================
 // EMBEDDED CONFIG — fill in before uploading to GitHub
 // ============================================================
-
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
@@ -584,6 +583,7 @@ var EMBEDDED = {
     appId:             '',
   }
 };
+
 
 // ============================================================
 // CONSTANTS
@@ -1046,7 +1046,7 @@ function renderLeaderboard() {
     return {m:m, nw:nw, gain:gain, gainPct:(gain/(cfg&&cfg.startingBalance||1))*100};
   }).sort(function(a,b){ return b.nw-a.nw; });
   document.getElementById('leaderboard').innerHTML = entries.map(function(e,i) {
-    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div>' + (function(){ var c=memberColor(e.m); var av=e.m.avatarImg?'<img class="avatar-img" src="'+e.m.avatarImg+'" alt="">':( e.m.emoji||memberInitials(e.m.name)); return '<div class="avatar" style="background:'+c.bg+';color:'+c.color+';font-size:16px;">'+av+'</div>'; })() + '<div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'\u25B2':'\u25BC') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div></div></div>';
+    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div>' + (function(){ var c=memberColor(e.m); var av=e.m.avatarImg?'<img class="avatar-img" src="'+e.m.avatarImg+'" alt="">':( e.m.emoji||memberInitials(e.m.name)); return '<div class="avatar" style="background:'+c.bg+';color:'+c.color+';font-size:20px;width:44px;height:44px;">'+av+'</div>'; })() + '<div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'\u25B2':'\u25BC') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div></div></div>';
   }).join('');
 }
 function renderTip() { document.getElementById('tipText').innerHTML = TIPS[tipIndex % TIPS.length]; }
