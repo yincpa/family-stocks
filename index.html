@@ -41,6 +41,180 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
 
 // ============================================================
+// AVATAR HELPER — renders avatar everywhere consistently
+// ============================================================
+function avatarHTML(m, size, extraStyle) {
+  size = size || 38;
+  extraStyle = extraStyle || '';
+  var c = memberColor(m);
+  var inner = '';
+  if (m.avatarImg) {
+    inner = '<img class="avatar-img" src="' + m.avatarImg + '" alt="">';
+  } else {
+    inner = m.emoji || memberInitials(m.name);
+  }
+  return '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:' + Math.round(size*0.4) + 'px;font-weight:700;overflow:hidden;flex-shrink:0;background:' + c.bg + ';color:' + c.color + ';' + extraStyle + '">' + inner + '</div>';
+}
+
+// ============================================================
+// AVATAR EDITOR
+// ============================================================
+var EMOJI_LIST = [
+  '😀','😎','🤓','😊','🥳','😂','🤩','😇','🤗','🫡','🧐','🤔',
+  '👨','👩','👦','👧','👴','👵','🧑','👶','🤴','👸','🦸','🧙',
+  '🐶','🐱','🐻','🦊','🐼','🐨','🦁','🐯','🐸','🐵','🦄','🐲',
+  '⚽','🏀','🏈','⚾','🎾','🏐','🎮','🕹️','🏆','🎯','🎲','♟️',
+  '🚀','✈️','🏎️','⛵','🛸','🌟','💎','🔥','⚡','🌈','🎸','🎭',
+  '📈','💰','💵','🏦','💳','📊','🧮','💡','🎓','📚','🔬','🖥️',
+  '🍕','🍔','🌮','🍣','🍩','☕','🧁','🍿','🎂','🍦','🥑','🍜',
+  '❤️','💜','💙','💚','🧡','💛','🖤','🤍','💗','🩵','🩷','🫶'
+];
+
+var avatarEditMemberId = null;
+var avatarEditValue = {type:'emoji', emoji:'', img:''};
+
+function openAvatarEditor(memberId) {
+  var m = members.find(function(m){ return m.id === memberId; });
+  if (!m) return;
+  avatarEditMemberId = memberId;
+  document.getElementById('avatarEditorSub').textContent = 'Change ' + m.name + "'s avatar.";
+
+  // Set initial value
+  if (m.avatarImg) {
+    avatarEditValue = {type:'upload', emoji:m.emoji||'', img:m.avatarImg};
+    setAvatarMode('upload');
+  } else {
+    avatarEditValue = {type:'emoji', emoji:m.emoji||memberInitials(m.name), img:''};
+    setAvatarMode('emoji');
+  }
+  updateAvatarPreview();
+  renderEmojiGrid();
+  document.getElementById('avatarEditorOverlay').classList.remove('hidden');
+}
+
+function setAvatarMode(mode) {
+  document.getElementById('avatarModeEmoji').classList.toggle('active', mode==='emoji');
+  document.getElementById('avatarModeUpload').classList.toggle('active', mode==='upload');
+  document.getElementById('avatarEmojiPanel').style.display = mode==='emoji' ? 'block' : 'none';
+  document.getElementById('avatarUploadPanel').style.display = mode==='upload' ? 'block' : 'none';
+}
+
+document.getElementById('avatarModeEmoji').addEventListener('click', function(){ setAvatarMode('emoji'); avatarEditValue.type='emoji'; });
+document.getElementById('avatarModeUpload').addEventListener('click', function(){ setAvatarMode('upload'); avatarEditValue.type='upload'; });
+
+function updateAvatarPreview() {
+  var preview = document.getElementById('avatarPreview');
+  var m = members.find(function(m){ return m.id === avatarEditMemberId; });
+  var c = m ? memberColor(m) : AVATAR_COLORS[0];
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    preview.innerHTML = '<img src="' + avatarEditValue.img + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    preview.style.background = 'var(--surface2)';
+  } else {
+    preview.textContent = avatarEditValue.emoji || '?';
+    preview.style.background = c.bg;
+    preview.style.color = c.color;
+  }
+}
+
+function renderEmojiGrid() {
+  var grid = document.getElementById('emojiGrid');
+  grid.innerHTML = EMOJI_LIST.map(function(e) {
+    var sel = avatarEditValue.emoji === e && avatarEditValue.type === 'emoji' ? ' selected' : '';
+    return '<button class="emoji-pick' + sel + '" data-emoji="' + e + '">' + e + '</button>';
+  }).join('');
+  grid.querySelectorAll('.emoji-pick').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      avatarEditValue.type = 'emoji';
+      avatarEditValue.emoji = btn.dataset.emoji;
+      avatarEditValue.img = '';
+      setAvatarMode('emoji');
+      updateAvatarPreview();
+      renderEmojiGrid();
+    });
+  });
+}
+
+// File upload handling
+document.getElementById('uploadZone').addEventListener('click', function() {
+  document.getElementById('avatarFileInput').click();
+});
+
+document.getElementById('avatarFileInput').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      // Resize to 100x100 thumbnail
+      var canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      var ctx = canvas.getContext('2d');
+      // Center crop
+      var size = Math.min(img.width, img.height);
+      var sx = (img.width - size) / 2;
+      var sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 100, 100);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      avatarEditValue.type = 'upload';
+      avatarEditValue.img = dataUrl;
+      updateAvatarPreview();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  // Reset input so same file can be re-selected
+  e.target.value = '';
+});
+
+// Also support drag-and-drop on upload zone
+var uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.style.borderColor='var(--accent)'; });
+uploadZone.addEventListener('dragleave', function(){ uploadZone.style.borderColor=''; });
+uploadZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  uploadZone.style.borderColor = '';
+  var file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  // Trigger the same processing as file input
+  var input = document.getElementById('avatarFileInput');
+  var dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change'));
+});
+
+// Cancel
+document.getElementById('avatarCancelBtn').addEventListener('click', function() {
+  document.getElementById('avatarEditorOverlay').classList.add('hidden');
+});
+
+// Save
+document.getElementById('avatarSaveBtn').addEventListener('click', function() {
+  var btn = document.getElementById('avatarSaveBtn');
+  setLoading(btn, true, 'Saving...');
+  var updates = {};
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    updates.avatarImg = avatarEditValue.img;
+    updates.emoji = avatarEditValue.emoji || memberInitials(members.find(function(m){return m.id===avatarEditMemberId;}).name);
+  } else {
+    updates.avatarImg = null;
+    updates.emoji = avatarEditValue.emoji || '?';
+  }
+  fbUpdate('members/' + avatarEditMemberId, updates).then(function() {
+    showToast('Avatar updated!');
+    document.getElementById('avatarEditorOverlay').classList.add('hidden');
+    // Re-render manage list if open
+    if (!document.getElementById('manageMembersOverlay').classList.contains('hidden')) renderManageList();
+  }).catch(function(e) {
+    showToast('Failed to save: ' + e.message, 'error');
+  }).then(function() {
+    setLoading(btn, false, 'Save Avatar');
+  });
+});
+
+// ============================================================
 // TOP NAVIGATION — page switching
 // ============================================================
 document.querySelectorAll('.top-nav-btn').forEach(function(btn) {
@@ -389,6 +563,164 @@ function renderScoreBar(score) {
 
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js">
+
+// ============================================================
+// AVATAR EDITOR
+// ============================================================
+var EMOJI_LIST = [
+  '😀','😎','🤓','😊','🥳','😂','🤩','😇','🤗','🫡','🧐','🤔',
+  '👨','👩','👦','👧','👴','👵','🧑','👶','🤴','👸','🦸','🧙',
+  '🐶','🐱','🐻','🦊','🐼','🐨','🦁','🐯','🐸','🐵','🦄','🐲',
+  '⚽','🏀','🏈','⚾','🎾','🏐','🎮','🕹️','🏆','🎯','🎲','♟️',
+  '🚀','✈️','🏎️','⛵','🛸','🌟','💎','🔥','⚡','🌈','🎸','🎭',
+  '📈','💰','💵','🏦','💳','📊','🧮','💡','🎓','📚','🔬','🖥️',
+  '🍕','🍔','🌮','🍣','🍩','☕','🧁','🍿','🎂','🍦','🥑','🍜',
+  '❤️','💜','💙','💚','🧡','💛','🖤','🤍','💗','🩵','🩷','🫶'
+];
+
+var avatarEditMemberId = null;
+var avatarEditValue = {type:'emoji', emoji:'', img:''};
+
+function openAvatarEditor(memberId) {
+  var m = members.find(function(m){ return m.id === memberId; });
+  if (!m) return;
+  avatarEditMemberId = memberId;
+  document.getElementById('avatarEditorSub').textContent = 'Change ' + m.name + "'s avatar.";
+
+  // Set initial value
+  if (m.avatarImg) {
+    avatarEditValue = {type:'upload', emoji:m.emoji||'', img:m.avatarImg};
+    setAvatarMode('upload');
+  } else {
+    avatarEditValue = {type:'emoji', emoji:m.emoji||memberInitials(m.name), img:''};
+    setAvatarMode('emoji');
+  }
+  updateAvatarPreview();
+  renderEmojiGrid();
+  document.getElementById('avatarEditorOverlay').classList.remove('hidden');
+}
+
+function setAvatarMode(mode) {
+  document.getElementById('avatarModeEmoji').classList.toggle('active', mode==='emoji');
+  document.getElementById('avatarModeUpload').classList.toggle('active', mode==='upload');
+  document.getElementById('avatarEmojiPanel').style.display = mode==='emoji' ? 'block' : 'none';
+  document.getElementById('avatarUploadPanel').style.display = mode==='upload' ? 'block' : 'none';
+}
+
+document.getElementById('avatarModeEmoji').addEventListener('click', function(){ setAvatarMode('emoji'); avatarEditValue.type='emoji'; });
+document.getElementById('avatarModeUpload').addEventListener('click', function(){ setAvatarMode('upload'); avatarEditValue.type='upload'; });
+
+function updateAvatarPreview() {
+  var preview = document.getElementById('avatarPreview');
+  var m = members.find(function(m){ return m.id === avatarEditMemberId; });
+  var c = m ? memberColor(m) : AVATAR_COLORS[0];
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    preview.innerHTML = '<img src="' + avatarEditValue.img + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    preview.style.background = 'var(--surface2)';
+  } else {
+    preview.textContent = avatarEditValue.emoji || '?';
+    preview.style.background = c.bg;
+    preview.style.color = c.color;
+  }
+}
+
+function renderEmojiGrid() {
+  var grid = document.getElementById('emojiGrid');
+  grid.innerHTML = EMOJI_LIST.map(function(e) {
+    var sel = avatarEditValue.emoji === e && avatarEditValue.type === 'emoji' ? ' selected' : '';
+    return '<button class="emoji-pick' + sel + '" data-emoji="' + e + '">' + e + '</button>';
+  }).join('');
+  grid.querySelectorAll('.emoji-pick').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      avatarEditValue.type = 'emoji';
+      avatarEditValue.emoji = btn.dataset.emoji;
+      avatarEditValue.img = '';
+      setAvatarMode('emoji');
+      updateAvatarPreview();
+      renderEmojiGrid();
+    });
+  });
+}
+
+// File upload handling
+document.getElementById('uploadZone').addEventListener('click', function() {
+  document.getElementById('avatarFileInput').click();
+});
+
+document.getElementById('avatarFileInput').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      // Resize to 100x100 thumbnail
+      var canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      var ctx = canvas.getContext('2d');
+      // Center crop
+      var size = Math.min(img.width, img.height);
+      var sx = (img.width - size) / 2;
+      var sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 100, 100);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      avatarEditValue.type = 'upload';
+      avatarEditValue.img = dataUrl;
+      updateAvatarPreview();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  // Reset input so same file can be re-selected
+  e.target.value = '';
+});
+
+// Also support drag-and-drop on upload zone
+var uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.style.borderColor='var(--accent)'; });
+uploadZone.addEventListener('dragleave', function(){ uploadZone.style.borderColor=''; });
+uploadZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  uploadZone.style.borderColor = '';
+  var file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  // Trigger the same processing as file input
+  var input = document.getElementById('avatarFileInput');
+  var dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change'));
+});
+
+// Cancel
+document.getElementById('avatarCancelBtn').addEventListener('click', function() {
+  document.getElementById('avatarEditorOverlay').classList.add('hidden');
+});
+
+// Save
+document.getElementById('avatarSaveBtn').addEventListener('click', function() {
+  var btn = document.getElementById('avatarSaveBtn');
+  setLoading(btn, true, 'Saving...');
+  var updates = {};
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    updates.avatarImg = avatarEditValue.img;
+    updates.emoji = avatarEditValue.emoji || memberInitials(members.find(function(m){return m.id===avatarEditMemberId;}).name);
+  } else {
+    updates.avatarImg = null;
+    updates.emoji = avatarEditValue.emoji || '?';
+  }
+  fbUpdate('members/' + avatarEditMemberId, updates).then(function() {
+    showToast('Avatar updated!');
+    document.getElementById('avatarEditorOverlay').classList.add('hidden');
+    // Re-render manage list if open
+    if (!document.getElementById('manageMembersOverlay').classList.contains('hidden')) renderManageList();
+  }).catch(function(e) {
+    showToast('Failed to save: ' + e.message, 'error');
+  }).then(function() {
+    setLoading(btn, false, 'Save Avatar');
+  });
+});
 
 // ============================================================
 // TOP NAVIGATION — page switching
@@ -785,7 +1117,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .pulse{animation:pulse 2s infinite;}
 .player-bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:4px;overflow-x:auto;}
 .player-bar::-webkit-scrollbar{height:0;}
-.player-tab{padding:12px 16px;cursor:pointer;border-bottom:3px solid transparent;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:8px;}
+.player-tab{padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:8px;}
 .player-tab:hover{color:var(--text);}
 .player-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 .add-member-tab{padding:12px 16px;cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;transition:color .15s;}
@@ -957,6 +1289,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .remove-wl-btn{color:var(--red);cursor:pointer;font-size:11px;background:none;border:none;font-family:inherit;padding:2px 6px;border-radius:4px;}
 .remove-wl-btn:hover{background:rgba(239,68,68,.15);}
 
+
+/* AVATAR IMAGES */
+.avatar-img{width:100%;height:100%;border-radius:50%;object-fit:cover;}
+.avatar-edit-preview{width:80px;height:80px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;border:3px solid var(--border2);}
+.avatar-edit-preview img{width:100%;height:100%;object-fit:cover;}
+.avatar-options{display:flex;gap:8px;margin-bottom:16px;}
+.avatar-opt-btn{flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;text-align:center;transition:all .15s;}
+.avatar-opt-btn:hover{border-color:var(--accent);color:var(--accent);}
+.avatar-opt-btn.active{border-color:var(--accent);background:rgba(79,142,247,.1);color:var(--accent);}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:200px;overflow-y:auto;padding:4px;}
+.emoji-grid::-webkit-scrollbar{width:4px;}
+.emoji-grid::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.emoji-pick{width:100%;aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:var(--surface2);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.emoji-pick:hover{border-color:var(--accent);background:var(--surface);}
+.emoji-pick.selected{border-color:var(--accent);background:rgba(79,142,247,.15);}
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:all .15s;color:var(--muted);font-size:13px;}
+.upload-zone:hover{border-color:var(--accent);color:var(--accent);}
+
 </style>
 </head>
 <body>
@@ -967,7 +1317,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <div id="wizardContent">
       <div style="text-align:center;padding:40px 20px;">
         <div style="font-size:32px;margin-bottom:12px;">📈</div>
-        <div style="font-size:18px;font-weight:700;">YIN Family Stock Challenge</div>
+        <div style="font-size:18px;font-weight:700;">Family Stock Challenge</div>
         <div style="margin-top:8px;font-size:14px;color:var(--muted);">Connecting...</div>
       </div>
     </div>
@@ -996,6 +1346,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <div class="modal-sub">Change PINs or remove non-core members.</div>
     <div id="manageMembersList"></div>
     <div style="margin-top:20px;"><button class="btn btn-ghost btn-full" id="manageMembersCloseBtn">Done</button></div>
+  </div>
+</div>
+
+<!-- AVATAR EDITOR -->
+<div class="overlay hidden" id="avatarEditorOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">Edit Avatar</div>
+    <div class="modal-sub" id="avatarEditorSub">Choose a photo, image, or emoji.</div>
+    <div class="avatar-edit-preview" id="avatarPreview"></div>
+    <div class="avatar-options">
+      <button class="avatar-opt-btn active" data-mode="emoji" id="avatarModeEmoji">Emoji</button>
+      <button class="avatar-opt-btn" data-mode="upload" id="avatarModeUpload">Upload Photo/Image</button>
+    </div>
+    <div id="avatarEmojiPanel">
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+    <div id="avatarUploadPanel" style="display:none;">
+      <div class="upload-zone" id="uploadZone">
+        Click to choose a photo or image<br><span style="font-size:11px;color:var(--muted);">JPG, PNG, GIF, SVG &mdash; any size, auto-resized</span>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-ghost" id="avatarCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-primary" id="avatarSaveBtn" style="flex:1;">Save Avatar</button>
+    </div>
   </div>
 </div>
 
@@ -1602,8 +1978,7 @@ function renderMarketNews() {
 function renderPlayerTabs() {
   var bar = document.getElementById('playerBar');
   var html = members.map(function(m) {
-    var c = memberColor(m);
-    return '<div class="player-tab' + (activePlayer===m.id?' active':'') + '" data-pid="' + m.id + '"><div class="avatar avatar-sm" style="background:' + c.bg + ';color:' + c.color + ';">' + (m.emoji||memberInitials(m.name)) + '</div>' + m.name + '</div>';
+    return '<div class="player-tab' + (activePlayer===m.id?' active':'') + '" data-pid="' + m.id + '">' + avatarHTML(m, 28) + m.name + '</div>';
   }).join('') + '<div class="add-member-tab" id="addMemberTabBtn">+ Add Member</div>';
   bar.innerHTML = html;
   bar.querySelectorAll('.player-tab').forEach(function(el) {
@@ -1696,8 +2071,7 @@ function renderLeaderboard() {
     return {m:m, nw:nw, gain:gain, gainPct:(gain/(cfg&&cfg.startingBalance||1))*100};
   }).sort(function(a,b){ return b.nw-a.nw; });
   document.getElementById('leaderboard').innerHTML = entries.map(function(e,i) {
-    var c = memberColor(e.m);
-    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div><div class="avatar" style="background:' + c.bg + ';color:' + c.color + ';font-size:16px;">' + (e.m.emoji||memberInitials(e.m.name)) + '</div><div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'▲':'▼') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div></div></div>';
+    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div>' + avatarHTML(e.m, 38) + '<div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'\u25B2':'\u25BC') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div></div></div>';
   }).join('');
 }
 function renderTip() { document.getElementById('tipText').innerHTML = TIPS[tipIndex % TIPS.length]; }
@@ -1773,8 +2147,13 @@ function openChangePinModal(memberId) {
 }
 function setPinUI(m, title, sub) {
   var c = memberColor(m);
-  document.getElementById('pinAvatar').textContent = m.emoji||memberInitials(m.name);
-  document.getElementById('pinAvatar').style.color = c.color;
+  var pinAvatarEl = document.getElementById('pinAvatar');
+  if (m.avatarImg) {
+    pinAvatarEl.innerHTML = '<img src="' + m.avatarImg + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">';
+  } else {
+    pinAvatarEl.textContent = m.emoji||memberInitials(m.name);
+    pinAvatarEl.style.color = c.color;
+  }
   document.getElementById('pinTitle').textContent = title;
   document.getElementById('pinSub').textContent = sub;
   document.getElementById('pinError').textContent = '';
@@ -1924,9 +2303,12 @@ function renderManageList() {
     var pinStatus = m.pin ? 'PIN set' : 'No PIN yet';
     return '<div class="member-item" style="flex-wrap:wrap;gap:8px;"><div class="avatar" style="background:' + c.bg + ';color:' + c.color + ';font-size:15px;">' + (m.emoji||memberInitials(m.name)) + '</div>' +
       '<div class="member-info"><div class="member-name">' + m.name + (m.isCore?' (core)':'') + '</div><div class="member-sub">' + fmt(nw) + ' · ' + pinStatus + '</div></div>' +
-      '<div style="display:flex;gap:6px;flex-shrink:0;"><button class="manage-btn change-pin-btn" data-mid="' + m.id + '" style="border-color:var(--accent);color:var(--accent);">' + (m.pin?'Change PIN':'Set PIN') + '</button>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0;"><button class="manage-btn edit-avatar-btn" data-mid="' + m.id + '" style="border-color:var(--green);color:var(--green);">Avatar</button><button class="manage-btn change-pin-btn" data-mid="' + m.id + '" style="border-color:var(--accent);color:var(--accent);">' + (m.pin?'Change PIN':'Set PIN') + '</button>' +
       (!m.isCore?'<button class="manage-btn remove-btn" data-mid="' + m.id + '">Remove</button>':'') + '</div></div>';
   }).join('');
+  container.querySelectorAll('.edit-avatar-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ document.getElementById('manageMembersOverlay').classList.add('hidden'); openAvatarEditor(btn.dataset.mid); });
+  });
   container.querySelectorAll('.change-pin-btn').forEach(function(btn){
     btn.addEventListener('click', function(){ document.getElementById('manageMembersOverlay').classList.add('hidden'); openChangePinModal(btn.dataset.mid); });
   });
@@ -2033,7 +2415,7 @@ function renderChat() {
     if (isMe) {
       html += '<div class="chat-msg me"><div class="chat-bubble">' + escapeHtml(msg.text) + '</div><div class="chat-meta"><span>' + timeStr + '</span></div></div>';
     } else {
-      html += '<div class="chat-msg other"><div class="chat-meta" style="margin-bottom:3px;"><span style="font-size:14px;">' + emoji + '</span><span class="chat-name" style="color:' + c.color + ';">' + name + '</span></div><div class="chat-bubble">' + escapeHtml(msg.text) + '</div><div class="chat-meta"><span>' + timeStr + '</span></div></div>';
+      html += '<div class="chat-msg other"><div class="chat-meta" style="margin-bottom:3px;">' + (member && member.avatarImg ? '<img src="' + member.avatarImg + '" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">' : '<span style="font-size:14px;">' + emoji + '</span>') + '<span class="chat-name" style="color:' + c.color + ';">' + name + '</span></div><div class="chat-bubble">' + escapeHtml(msg.text) + '</div><div class="chat-meta"><span>' + timeStr + '</span></div></div>';
     }
   });
   if (box.dataset.lastHash !== String(html.length)) {
@@ -2075,6 +2457,164 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
   });
 });
 
+
+// ============================================================
+// AVATAR EDITOR
+// ============================================================
+var EMOJI_LIST = [
+  '😀','😎','🤓','😊','🥳','😂','🤩','😇','🤗','🫡','🧐','🤔',
+  '👨','👩','👦','👧','👴','👵','🧑','👶','🤴','👸','🦸','🧙',
+  '🐶','🐱','🐻','🦊','🐼','🐨','🦁','🐯','🐸','🐵','🦄','🐲',
+  '⚽','🏀','🏈','⚾','🎾','🏐','🎮','🕹️','🏆','🎯','🎲','♟️',
+  '🚀','✈️','🏎️','⛵','🛸','🌟','💎','🔥','⚡','🌈','🎸','🎭',
+  '📈','💰','💵','🏦','💳','📊','🧮','💡','🎓','📚','🔬','🖥️',
+  '🍕','🍔','🌮','🍣','🍩','☕','🧁','🍿','🎂','🍦','🥑','🍜',
+  '❤️','💜','💙','💚','🧡','💛','🖤','🤍','💗','🩵','🩷','🫶'
+];
+
+var avatarEditMemberId = null;
+var avatarEditValue = {type:'emoji', emoji:'', img:''};
+
+function openAvatarEditor(memberId) {
+  var m = members.find(function(m){ return m.id === memberId; });
+  if (!m) return;
+  avatarEditMemberId = memberId;
+  document.getElementById('avatarEditorSub').textContent = 'Change ' + m.name + "'s avatar.";
+
+  // Set initial value
+  if (m.avatarImg) {
+    avatarEditValue = {type:'upload', emoji:m.emoji||'', img:m.avatarImg};
+    setAvatarMode('upload');
+  } else {
+    avatarEditValue = {type:'emoji', emoji:m.emoji||memberInitials(m.name), img:''};
+    setAvatarMode('emoji');
+  }
+  updateAvatarPreview();
+  renderEmojiGrid();
+  document.getElementById('avatarEditorOverlay').classList.remove('hidden');
+}
+
+function setAvatarMode(mode) {
+  document.getElementById('avatarModeEmoji').classList.toggle('active', mode==='emoji');
+  document.getElementById('avatarModeUpload').classList.toggle('active', mode==='upload');
+  document.getElementById('avatarEmojiPanel').style.display = mode==='emoji' ? 'block' : 'none';
+  document.getElementById('avatarUploadPanel').style.display = mode==='upload' ? 'block' : 'none';
+}
+
+document.getElementById('avatarModeEmoji').addEventListener('click', function(){ setAvatarMode('emoji'); avatarEditValue.type='emoji'; });
+document.getElementById('avatarModeUpload').addEventListener('click', function(){ setAvatarMode('upload'); avatarEditValue.type='upload'; });
+
+function updateAvatarPreview() {
+  var preview = document.getElementById('avatarPreview');
+  var m = members.find(function(m){ return m.id === avatarEditMemberId; });
+  var c = m ? memberColor(m) : AVATAR_COLORS[0];
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    preview.innerHTML = '<img src="' + avatarEditValue.img + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    preview.style.background = 'var(--surface2)';
+  } else {
+    preview.textContent = avatarEditValue.emoji || '?';
+    preview.style.background = c.bg;
+    preview.style.color = c.color;
+  }
+}
+
+function renderEmojiGrid() {
+  var grid = document.getElementById('emojiGrid');
+  grid.innerHTML = EMOJI_LIST.map(function(e) {
+    var sel = avatarEditValue.emoji === e && avatarEditValue.type === 'emoji' ? ' selected' : '';
+    return '<button class="emoji-pick' + sel + '" data-emoji="' + e + '">' + e + '</button>';
+  }).join('');
+  grid.querySelectorAll('.emoji-pick').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      avatarEditValue.type = 'emoji';
+      avatarEditValue.emoji = btn.dataset.emoji;
+      avatarEditValue.img = '';
+      setAvatarMode('emoji');
+      updateAvatarPreview();
+      renderEmojiGrid();
+    });
+  });
+}
+
+// File upload handling
+document.getElementById('uploadZone').addEventListener('click', function() {
+  document.getElementById('avatarFileInput').click();
+});
+
+document.getElementById('avatarFileInput').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      // Resize to 100x100 thumbnail
+      var canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      var ctx = canvas.getContext('2d');
+      // Center crop
+      var size = Math.min(img.width, img.height);
+      var sx = (img.width - size) / 2;
+      var sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 100, 100);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      avatarEditValue.type = 'upload';
+      avatarEditValue.img = dataUrl;
+      updateAvatarPreview();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  // Reset input so same file can be re-selected
+  e.target.value = '';
+});
+
+// Also support drag-and-drop on upload zone
+var uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.style.borderColor='var(--accent)'; });
+uploadZone.addEventListener('dragleave', function(){ uploadZone.style.borderColor=''; });
+uploadZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  uploadZone.style.borderColor = '';
+  var file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  // Trigger the same processing as file input
+  var input = document.getElementById('avatarFileInput');
+  var dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change'));
+});
+
+// Cancel
+document.getElementById('avatarCancelBtn').addEventListener('click', function() {
+  document.getElementById('avatarEditorOverlay').classList.add('hidden');
+});
+
+// Save
+document.getElementById('avatarSaveBtn').addEventListener('click', function() {
+  var btn = document.getElementById('avatarSaveBtn');
+  setLoading(btn, true, 'Saving...');
+  var updates = {};
+  if (avatarEditValue.type === 'upload' && avatarEditValue.img) {
+    updates.avatarImg = avatarEditValue.img;
+    updates.emoji = avatarEditValue.emoji || memberInitials(members.find(function(m){return m.id===avatarEditMemberId;}).name);
+  } else {
+    updates.avatarImg = null;
+    updates.emoji = avatarEditValue.emoji || '?';
+  }
+  fbUpdate('members/' + avatarEditMemberId, updates).then(function() {
+    showToast('Avatar updated!');
+    document.getElementById('avatarEditorOverlay').classList.add('hidden');
+    // Re-render manage list if open
+    if (!document.getElementById('manageMembersOverlay').classList.contains('hidden')) renderManageList();
+  }).catch(function(e) {
+    showToast('Failed to save: ' + e.message, 'error');
+  }).then(function() {
+    setLoading(btn, false, 'Save Avatar');
+  });
+});
 
 // ============================================================
 // TOP NAVIGATION — page switching
