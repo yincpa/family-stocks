@@ -121,7 +121,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .qty-input:focus{border-color:var(--accent);}
 .trade-cost{font-size:12px;color:var(--muted);margin-top:8px;}
 .trade-cost span{color:var(--text);font-weight:600;}
-.holdings-table{border-collapse:collapse;font-size:13px;table-layout:fixed;width:1050px;}
+.holdings-table{border-collapse:collapse;font-size:13px;table-layout:fixed;width:1140px;}
 .holdings-table th{text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;overflow:hidden;}
 .holdings-table th:first-child{text-align:left;}
 .holdings-table td{padding:11px 8px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;font-size:13px;overflow:hidden;text-overflow:ellipsis;}
@@ -133,6 +133,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .holdings-table .col-excost{width:120px;}
 .holdings-table .col-extot{width:120px;}
 .holdings-table .col-pnl{width:110px;}
+.holdings-table .col-daychg{width:90px;}
 .holdings-table .col-sell{width:70px;}
 .holdings-table .col-notes{width:280px;}
 #holdingsContainer{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;width:100%;}
@@ -278,6 +279,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .emoji-pick.selected{border-color:var(--accent);background:rgba(79,142,247,.15);}
 .upload-zone{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:all .15s;color:var(--muted);font-size:13px;}
 .upload-zone:hover{border-color:var(--accent);color:var(--accent);}
+
+
+/* SYMBOL SEARCH DROPDOWN */
+.search-results{position:relative;}
+.search-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);max-height:200px;overflow-y:auto;z-index:50;display:none;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.search-dropdown.visible{display:block;}
+.search-result-item{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid var(--border);transition:background .1s;}
+.search-result-item:last-child{border-bottom:none;}
+.search-result-item:hover{background:var(--surface2);}
+.search-result-sym{font-weight:700;color:var(--accent);font-family:ui-monospace,monospace;}
+.search-result-name{color:var(--muted);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 </style>
 </head>
@@ -456,7 +468,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <div class="card">
       <div class="card-title">Trade Stocks</div>
       <div class="search-row">
-        <input class="search-input" id="tickerInput" placeholder="Symbol (e.g. AAPL, MSFT, NVDA)" maxlength="10">
+        <div class="search-results" style="flex:1;position:relative;">
+          <input class="search-input" id="tickerInput" placeholder="Name or symbol (e.g. Apple, AAPL)" maxlength="40" style="width:100%;">
+          <div class="search-dropdown" id="searchDropdown"></div>
+        </div>
         <button class="btn btn-primary" id="lookupBtn">Look Up</button>
       </div>
       <div class="quote-result" id="quoteResult">
@@ -557,7 +572,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         <th data-col="trade" style="width:60px;cursor:default;"></th>
       </tr></thead>
       <tbody id="screenerBody">
-        <tr><td colspan="22" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">Select a list and click Refresh Data to load stock analysis.</td></tr>
+        <tr><td colspan="23" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">Select a list and click Refresh Data to load stock analysis.</td></tr>
       </tbody>
     </table>
   </div>
@@ -887,7 +902,7 @@ function refreshAllPrices() {
   var chain = Promise.resolve();
   symbols.forEach(function(sym) {
     chain = chain.then(function() {
-      return fetchQuote(sym).then(function(q){ quotes[sym] = q.price; }).catch(function(){});
+      return fetchQuote(sym).then(function(q){ quotes[sym] = {price:q.price, change:q.change||0}; }).catch(function(){});
     }).then(function(){ return new Promise(function(r){ setTimeout(r, 250); }); });
   });
   chain.then(function() {
@@ -896,8 +911,8 @@ function refreshAllPrices() {
       var p = portfolios[playerId];
       if (!p || !p.holdings) return;
       Object.keys(p.holdings).forEach(function(sym) {
-        if (p.holdings[sym].shares > 0 && quotes[sym] !== undefined) {
-          updates['portfolios/' + playerId + '/holdings/' + sym + '/lastPrice'] = quotes[sym];
+        if (p.holdings[sym].shares > 0 && quotes[sym]) {
+          updates['portfolios/' + playerId + '/holdings/' + sym + '/lastPrice'] = quotes[sym].price; updates['portfolios/' + playerId + '/holdings/' + sym + '/dayChange'] = quotes[sym].change;
         }
       });
     });
@@ -997,14 +1012,15 @@ function renderHoldings() {
       '<td class="col-shares" style="text-align:right;font-family:ui-monospace,monospace;">' + h.shares + '</td>' +
       '<td class="col-avg" style="text-align:right;font-family:ui-monospace,monospace;color:var(--muted);">' + fmt(h.avgCost) + '</td>' +
       '<td class="col-price" style="text-align:right;font-family:ui-monospace,monospace;">' + fmt(cur) + '</td>' +
+      '<td class="col-daychg" style="text-align:right;font-family:ui-monospace,monospace;color:' + (h.dayChange>=0?'var(--green)':'var(--red)') + ';">' + (h.dayChange!=null?(h.dayChange>=0?'+':'')+fmt(h.dayChange):'--') + '</td>' +
       '<td class="col-excost" style="text-align:right;font-family:ui-monospace,monospace;color:var(--muted);">' + fmt(extCost) + '</td>' +
       '<td class="col-extot" style="text-align:right;font-family:ui-monospace,monospace;">' + fmt(extTotal) + '</td>' +
       '<td class="col-pnl" style="text-align:right;font-family:ui-monospace,monospace;color:' + (pnl>=0?'var(--green)':'var(--red)') + ';">' + (pnl>=0?'+':'') + fmt(pnl) + '<br><span style="font-size:10px;">' + fmtPct(pnlPct) + '</span></td>' +
       '<td class="col-sell" style="text-align:right;"><button class="sell-mini" data-sym="' + sym + '">Sell</button></td>' +
       '<td class="col-notes notes-cell" style="padding-left:12px;"><textarea class="note-input" data-sym="' + sym + '" rows="1" placeholder="Add a note...">' + escapeHtml(note) + '</textarea><div class="note-saved" id="note-saved-' + sym + '">saved</div></td></tr>';
   }).join('');
-  container.innerHTML = '<table class="holdings-table"><colgroup><col class="col-stock"><col class="col-shares"><col class="col-avg"><col class="col-price"><col class="col-excost"><col class="col-extot"><col class="col-pnl"><col class="col-sell"><col class="col-notes"></colgroup>' +
-    '<thead><tr><th class="col-stock" style="text-align:left;">Stock</th><th class="col-shares">Shares</th><th class="col-avg">Avg Cost</th><th class="col-price">Price</th><th class="col-excost">Ext. Cost</th><th class="col-extot">Ext. Total</th><th class="col-pnl">P&amp;L</th><th class="col-sell"></th><th class="col-notes" style="text-align:left;padding-left:12px;">My Notes</th></tr></thead>' +
+  container.innerHTML = '<table class="holdings-table"><colgroup><col class="col-stock"><col class="col-shares"><col class="col-avg"><col class="col-price"><col class="col-daychg"><col class="col-excost"><col class="col-extot"><col class="col-pnl"><col class="col-sell"><col class="col-notes"></colgroup>' +
+    '<thead><tr><th class="col-stock" style="text-align:left;">Stock</th><th class="col-shares">Shares</th><th class="col-avg">Avg Cost</th><th class="col-price">Price</th><th class="col-daychg">Day Chg</th><th class="col-excost">Ext. Cost</th><th class="col-extot">Ext. Total</th><th class="col-pnl">Total Gain/Loss</th><th class="col-sell"></th><th class="col-notes" style="text-align:left;padding-left:12px;">My Notes</th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table>';
   container.querySelectorAll('.sell-mini').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -1064,6 +1080,46 @@ function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); re
 // ============================================================
 // STOCK LOOKUP
 // ============================================================
+// Symbol search - type a name, get matching tickers
+var searchTimeout = null;
+document.getElementById('tickerInput').addEventListener('input', function() {
+  var query = this.value.trim();
+  if (searchTimeout) clearTimeout(searchTimeout);
+  if (query.length < 2) { document.getElementById('searchDropdown').classList.remove('visible'); return; }
+  // If it looks like a pure ticker symbol (all caps, short), don't search
+  if (/^[A-Z]{1,5}$/.test(query)) { document.getElementById('searchDropdown').classList.remove('visible'); return; }
+  searchTimeout = setTimeout(function() {
+    fetch('https://finnhub.io/api/v1/search?q=' + encodeURIComponent(query) + '&token=' + cfg.finnhubKey)
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var results = (data.result || []).filter(function(r) {
+          return r.type === 'Common Stock' && !r.symbol.includes('.');
+        }).slice(0, 6);
+        var dropdown = document.getElementById('searchDropdown');
+        if (!results.length) { dropdown.classList.remove('visible'); return; }
+        dropdown.innerHTML = results.map(function(r) {
+          return '<div class="search-result-item" data-sym="' + r.symbol + '">' +
+            '<span class="search-result-sym">' + r.symbol + '</span>' +
+            '<span class="search-result-name">' + escapeHtml(r.description) + '</span></div>';
+        }).join('');
+        dropdown.classList.add('visible');
+        dropdown.querySelectorAll('.search-result-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            document.getElementById('tickerInput').value = item.dataset.sym;
+            dropdown.classList.remove('visible');
+            lookupStock();
+          });
+        });
+      }).catch(function(){});
+  }, 300);
+});
+// Hide dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.search-results')) {
+    document.getElementById('searchDropdown').classList.remove('visible');
+  }
+});
+
 function lookupStock() {
   var input = document.getElementById('tickerInput');
   var symbol = input.value.toUpperCase().trim();
@@ -1082,7 +1138,7 @@ function lookupStock() {
     ce.className = 'quote-change ' + (quote.change>=0?'up':'down');
     ce.textContent = (quote.change>=0?'▲':'▼') + ' ' + fmt(Math.abs(quote.change)) + ' (' + fmtPct(quote.changePct||0) + ') today  ·  You own: ' + (holding&&holding.shares||0) + ' shares';
     document.getElementById('quoteResult').classList.add('visible');
-    if (holding) fbUpdate('portfolios/'+activePlayer+'/holdings/'+symbol, {lastPrice:quote.price});
+    if (holding) fbUpdate('portfolios/'+activePlayer+'/holdings/'+symbol, {lastPrice:quote.price, dayChange:quote.change||0});
     updateTradeCost();
     var stockNews = document.getElementById('stockNews'), stockNewsList = document.getElementById('stockNewsList');
     if (stockNews&&stockNewsList) {
@@ -1628,7 +1684,7 @@ document.getElementById('screenerListSelect').addEventListener('change', functio
     fbGet('watchlist').then(function(data) {
       customWatchlist = data ? Object.values(data) : [];
       if (!customWatchlist.length) {
-        document.getElementById('screenerBody').innerHTML = '<tr><td colspan="22" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">Your watchlist is empty. Add ticker symbols above to get started.</td></tr>';
+        document.getElementById('screenerBody').innerHTML = '<tr><td colspan="23" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">Your watchlist is empty. Add ticker symbols above to get started.</td></tr>';
       }
     });
   }
@@ -1830,7 +1886,7 @@ function renderScreenerTable() {
   var tbody = document.getElementById('screenerBody');
   var isWatchlist = document.getElementById('screenerListSelect').value === 'watchlist';
   if (!screenerData.length) {
-    tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">No data. Click Refresh Data to load.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">No data. Click Refresh Data to load.</td></tr>';
     return;
   }
   tbody.innerHTML = screenerData.map(function(r, i) {
