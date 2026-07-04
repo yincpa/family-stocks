@@ -1119,22 +1119,25 @@ function fetchCandles(symbol, days) {
   var from = now - days * 24 * 60 * 60;
   var url = 'https://finnhub.io/api/v1/stock/candle?symbol=' + symbol.toUpperCase() + '&resolution=D&from=' + from + '&to=' + now + '&token=' + cfg.finnhubKey;
   return fetch(url)
-    .then(function(r) {
-      if (r.status === 429) { console.warn('Rate limited on candle API'); return {s:'rate_limit'}; }
-      return r.json();
-    })
+    .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d) return {candles:null, reason:'empty response'};
-      if (d.s === 'rate_limit') return {candles:null, reason:'Rate limited. Wait a moment and try again.'};
-      if (d.s === 'no_data') return {candles:null, reason:'No candle data available for this symbol.'};
-      if (d.s !== 'ok' || !d.c || !d.c.length) return {candles:null, reason:'No data returned (status: ' + (d.s||'unknown') + ')'};
-      var candles = [];
-      for (var i = 0; i < d.c.length; i++) {
-        candles.push({ o: d.o[i], h: d.h[i], l: d.l[i], c: d.c[i], v: d.v[i], t: d.t[i] });
+      if (d && d.s === 'ok' && d.c && d.c.length) {
+        var candles = [];
+        for (var i = 0; i < d.c.length; i++) {
+          candles.push({ o: d.o[i], h: d.h[i], l: d.l[i], c: d.c[i], v: d.v[i], t: d.t[i] });
+        }
+        return {candles:candles, reason:null};
       }
-      return {candles:candles, reason:null};
-    }).catch(function(e) { return {candles:null, reason:'Network error: ' + e.message}; });
+      return {candles:null, reason:'notavail', symbol:symbol};
+    }).catch(function(e) {
+      return {candles:null, reason:'notavail', symbol:symbol};
+    });
 }
+
+
+
+var tvLoaded = false;
+var usingTradingView = false;
 
 function loadChart(symbol, days) {
   chartSymbol = symbol;
@@ -1146,11 +1149,23 @@ function loadChart(symbol, days) {
     b.classList.toggle('active', parseInt(b.dataset.range) === days);
   });
 
+  var titleEl = document.querySelector('.chart-title');
+  var tvRange = days <= 7 ? '5D' : days <= 30 ? '1M' : days <= 90 ? '3M' : days <= 180 ? '6M' : '12M';
+
+  // If we already know TradingView is needed, skip Finnhub and go straight to TV
+  if (usingTradingView) {
+    showTradingView(symbol, tvRange);
+    return;
+  }
+
+  // Try Finnhub candles first
+  var wrap = document.querySelector('.chart-canvas-wrap');
+  wrap.innerHTML = '<canvas id="chartCanvas" width="700" height="580" style="width:100%;height:290px;"></canvas>';
   var canvas = document.getElementById('chartCanvas');
   var ctx = canvas.getContext('2d');
   var W = canvas.width = canvas.offsetWidth * 2;
-  var H = canvas.height = 520;
-  canvas.style.height = '260px';
+  var H = canvas.height = 580;
+  canvas.style.height = '290px';
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#7a8299';
   ctx.font = '24px sans-serif';
@@ -1159,25 +1174,72 @@ function loadChart(symbol, days) {
 
   fetchCandles(symbol, days).then(function(result) {
     if (!result.candles) {
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#7a8299';
-      ctx.font = '24px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(result.reason || 'No chart data available', W / 2, H / 2 - 10);
-      ctx.font = '20px sans-serif';
-      ctx.fillStyle = '#4f8ef7';
-      ctx.fillText('Click a time range button to retry', W / 2, H / 2 + 25);
+      usingTradingView = true;
+      showTradingView(symbol, tvRange);
       return;
     }
     chartData = result.candles;
+    if (titleEl) titleEl.textContent = 'Price Chart';
     drawCandlestickChart(ctx, result.candles, W, H);
   });
+}
+
+function showTradingView(symbol, range) {
+  var titleEl = document.querySelector('.chart-title');
+  if (titleEl) titleEl.textContent = 'Price Chart';
+  var wrap = document.querySelector('.chart-canvas-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div id="tv-chart-container" style="height:420px;border-radius:8px;overflow:hidden;"></div>';
+
+  function createWidget() {
+    if (typeof TradingView === 'undefined') return;
+    new TradingView.widget({
+      autosize: true,
+      symbol: symbol,
+      interval: 'D',
+      timezone: 'America/New_York',
+      theme: 'dark',
+      style: '1',
+      locale: 'en',
+      toolbar_bg: '#161a23',
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      container_id: 'tv-chart-container',
+      studies: [
+        'MASimple@tv-basicstudies',
+        'MAExp@tv-basicstudies'
+      ],
+      studies_overrides: {
+        'moving average.length': 20,
+        'moving average.plot.color': '#f59e0b',
+        'moving average.plot.linewidth': 2,
+        'moving average exponential.length': 50,
+        'moving average exponential.plot.color': '#a78bfa',
+        'moving average exponential.plot.linewidth': 2,
+      },
+      range: range,
+    });
+  }
+
+  if (tvLoaded) {
+    createWidget();
+  } else {
+    var tvScript = document.createElement('script');
+    tvScript.src = 'https://s3.tradingview.com/tv.js';
+    tvScript.onload = function() {
+      tvLoaded = true;
+      createWidget();
+    };
+    document.body.appendChild(tvScript);
+  }
 }
 
 function drawCandlestickChart(ctx, candles, W, H) {
   ctx.clearRect(0, 0, W, H);
 
-  var pad = { top: 20, bottom: 40, left: 80, right: 20 };
+  var pad = { top: 20, bottom: 60, left: 80, right: 20 };
   var chartW = W - pad.left - pad.right;
   var chartH = H - pad.top - pad.bottom;
 
@@ -1277,6 +1339,89 @@ function drawCandlestickChart(ctx, candles, W, H) {
   ctx.font = 'bold 20px ui-monospace, monospace';
   ctx.textAlign = 'left';
   ctx.fillText('$' + lastPrice.toFixed(2), W - pad.right + 4, lastY + 6);
+
+  // ── MOVING AVERAGE LINES ──
+  function calcMA(period) {
+    var ma = [];
+    for (var i = 0; i < n; i++) {
+      if (i < period - 1) { ma.push(null); continue; }
+      var sum = 0;
+      for (var j = i - period + 1; j <= i; j++) sum += candles[j].c;
+      ma.push(sum / period);
+    }
+    return ma;
+  }
+
+  function drawMALine(maValues, color, label) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    var started = false;
+    for (var i = 0; i < n; i++) {
+      if (maValues[i] === null) continue;
+      var x = pad.left + i * totalCandleW + candleW / 2;
+      var y = priceToY(maValues[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Label at the end of the line
+    var lastIdx = -1;
+    for (var i = n - 1; i >= 0; i--) { if (maValues[i] !== null) { lastIdx = i; break; } }
+    if (lastIdx >= 0) {
+      var lx = pad.left + lastIdx * totalCandleW + candleW / 2;
+      var ly = priceToY(maValues[lastIdx]);
+      ctx.fillStyle = color;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, lx + 8, ly + 5);
+    }
+  }
+
+  // Only draw MAs if we have enough data points
+  if (n >= 20) {
+    var ma20 = calcMA(20);
+    drawMALine(ma20, '#f59e0b', '20-MA');
+  }
+  if (n >= 50) {
+    var ma50 = calcMA(50);
+    drawMALine(ma50, '#a78bfa', '50-MA');
+  }
+
+  // ── LEGEND ──
+  var legendY = H - 8;
+  ctx.font = '18px sans-serif';
+  ctx.textAlign = 'left';
+  // Green candle
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(pad.left, legendY - 10, 14, 14);
+  ctx.fillText('Up day', pad.left + 20, legendY + 2);
+  // Red candle
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(pad.left + 90, legendY - 10, 14, 14);
+  ctx.fillText('Down day', pad.left + 110, legendY + 2);
+  // 20-MA
+  if (n >= 20) {
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(pad.left + 210, legendY - 3); ctx.lineTo(pad.left + 234, legendY - 3); ctx.stroke();
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('20-day avg', pad.left + 240, legendY + 2);
+  }
+  // 50-MA
+  if (n >= 50) {
+    ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(pad.left + 348, legendY - 3); ctx.lineTo(pad.left + 372, legendY - 3); ctx.stroke();
+    ctx.fillStyle = '#a78bfa';
+    ctx.fillText('50-day avg', pad.left + 378, legendY + 2);
+  }
+  // Current price
+  ctx.strokeStyle = '#4f8ef7'; ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(pad.left + 490, legendY - 3); ctx.lineTo(pad.left + 514, legendY - 3); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#4f8ef7';
+  ctx.fillText('Current', pad.left + 520, legendY + 2);
 }
 
 // Chart range button clicks
