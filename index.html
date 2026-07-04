@@ -239,11 +239,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .screener-status{font-size:12px;color:var(--muted);padding:0 24px 8px;display:flex;align-items:center;gap:8px;}
 .screener-progress{flex:1;max-width:300px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
 .screener-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
-.screener-wrap{overflow-x:auto;padding:0 24px 24px;-webkit-overflow-scrolling:touch;}
+.screener-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 180px);padding:0 24px 24px;-webkit-overflow-scrolling:touch;}
 .screener-wrap::-webkit-scrollbar{height:6px;}
 .screener-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 .screener-table{border-collapse:collapse;font-size:13px;width:100%;min-width:1400px;}
-.screener-table th{position:sticky;top:0;background:var(--surface);text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s;}
+.screener-table th{position:sticky;top:0;background:var(--bg);z-index:10;text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s;}
 .screener-table th:hover{color:var(--accent);}
 .screener-table th.sorted-asc::after{content:' ▲';color:var(--accent);}
 .screener-table th.sorted-desc::after{content:' ▼';color:var(--accent);}
@@ -290,6 +290,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .search-result-item:hover{background:var(--surface2);}
 .search-result-sym{font-weight:700;color:var(--accent);font-family:ui-monospace,monospace;}
 .search-result-name{color:var(--muted);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+
+/* CANDLESTICK CHART */
+.chart-container{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.chart-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.chart-range-btns{display:flex;gap:4px;}
+.chart-range-btn{padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:11px;font-weight:600;transition:all .15s;}
+.chart-range-btn:hover{color:var(--text);}
+.chart-range-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.chart-canvas-wrap{background:var(--surface);border-radius:var(--radius-sm);padding:8px 4px 4px;position:relative;}
+.chart-loading{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
 
 </style>
 </head>
@@ -491,6 +503,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
           <div class="stock-news-title">Latest News</div>
           <div id="stockNewsList"></div>
         </div>
+        <div class="chart-container" id="chartContainer" style="display:none;">
+          <div class="chart-header">
+            <div class="chart-title">Price Chart</div>
+            <div class="chart-range-btns">
+              <button class="chart-range-btn" data-range="7">1W</button>
+              <button class="chart-range-btn active" data-range="30">1M</button>
+              <button class="chart-range-btn" data-range="90">3M</button>
+              <button class="chart-range-btn" data-range="180">6M</button>
+              <button class="chart-range-btn" data-range="365">1Y</button>
+            </div>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chartCanvas" width="700" height="260" style="width:100%;height:260px;"></canvas>
+          </div>
+        </div>
       </div>
     </div>
     <div class="card" style="overflow:visible;padding-left:0;padding-right:0;">
@@ -549,26 +576,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <table class="screener-table" id="screenerTable">
       <thead><tr>
         <th data-col="rank" style="width:50px;text-align:center;">#</th>
-        <th data-col="symbol" style="text-align:left;">Symbol</th>
-        <th data-col="name" style="text-align:left;">Company</th>
-        <th data-col="price">Price</th>
-        <th data-col="change">Day Chg</th>
-        <th data-col="pe">P/E</th>
-        <th data-col="fwdPe">Fwd P/E</th>
-        <th data-col="eps">EPS</th>
-        <th data-col="fwdEps">Fwd EPS</th>
-        <th data-col="divYield">Div Yield</th>
-        <th data-col="wk52hi">52W High</th>
-        <th data-col="wk52lo">52W Low</th>
-        <th data-col="pctFrom52hi">% from High</th>
-        <th data-col="ma50">vs 50-MA</th>
-        <th data-col="ma200">vs 200-MA</th>
-        <th data-col="mktCap">Mkt Cap</th>
-        <th data-col="beta">Beta</th>
-        <th data-col="valueScore">Value</th>
-        <th data-col="momentumScore">Momentum</th>
-        <th data-col="yieldScore">Yield</th>
-        <th data-col="compositeScore" style="min-width:130px;">Score</th>
+        <th data-col="symbol" style="text-align:left;" title="The stock's ticker symbol — a short code used to identify a company on the stock exchange (e.g. AAPL = Apple).">Symbol</th>
+        <th data-col="name" style="text-align:left;" title="The full company name behind the ticker symbol.">Company</th>
+        <th data-col="price" title="The current market price per share. This is what you'd pay to buy one share right now.">Price</th>
+        <th data-col="change" title="How much the stock price moved today compared to yesterday's close. Green = up, Red = down.">Day Chg</th>
+        <th data-col="pe" title="Price-to-Earnings Ratio. Compares the stock price to the company's profits. Lower P/E may mean the stock is cheaper relative to earnings. A P/E of 15-20 is average; above 30 is expensive; below 10 could be a bargain or a warning sign.">P/E</th>
+        <th data-col="fwdPe" title="Forward P/E. Same as P/E but uses estimated future earnings instead of past earnings. If Forward P/E is lower than P/E, analysts expect profits to grow — a good sign.">Fwd P/E</th>
+        <th data-col="eps" title="Earnings Per Share. The company's profit divided by number of shares. Higher EPS = more profitable. If EPS is negative, the company is currently losing money.">EPS</th>
+        <th data-col="fwdEps" title="Forward EPS. The estimated future earnings per share based on analyst predictions. If higher than current EPS, the company is expected to become more profitable.">Fwd EPS</th>
+        <th data-col="divYield" title="Dividend Yield. The percentage of the stock price paid out as cash dividends each year. A 3% yield means for every $100 invested, you receive $3/year in cash. Not all companies pay dividends.">Div Yield</th>
+        <th data-col="wk52hi" title="The highest price this stock has traded at in the past 52 weeks (1 year). Useful for understanding the stock's recent range.">52W High</th>
+        <th data-col="wk52lo" title="The lowest price this stock has traded at in the past 52 weeks (1 year). If the current price is near the 52W Low, it could be a bargain — or falling for a reason.">52W Low</th>
+        <th data-col="pctFrom52hi" title="How far below (or above) the 52-week high the stock currently sits. -5% means it's 5% below its peak. Closer to 0% = near its high = strong momentum.">% from High</th>
+        <th data-col="ma50" title="Price vs 50-Day Moving Average. The 50-MA is the average price over the last 50 trading days. If the stock is ABOVE it (positive %), it's in a short-term uptrend. Below it = short-term downtrend.">vs 50-MA</th>
+        <th data-col="ma200" title="Price vs 200-Day Moving Average. The 200-MA is a long-term trend indicator. Stock ABOVE 200-MA = long-term uptrend (bullish). Below = long-term downtrend (bearish). This is one of the most watched indicators by professional traders.">vs 200-MA</th>
+        <th data-col="mktCap" title="Market Capitalization. The total value of all the company's shares combined. Large cap ($100B+) = stable, blue chip. Mid cap ($10-100B) = growth potential. Small cap (under $10B) = higher risk and reward.">Mkt Cap</th>
+        <th data-col="beta" title="Beta measures how much a stock moves compared to the overall market. Beta of 1.0 = moves with the market. Above 1.0 = more volatile (bigger swings). Below 1.0 = more stable. Negative beta = moves opposite to the market.">Beta</th>
+        <th data-col="valueScore" title="Value Score (0-100). Rates how good of a 'deal' the stock is based on P/E ratio, forward P/E, and earnings growth. Higher score = better value for your money. Based on: low P/E, improving forward P/E, positive and growing EPS.">Value</th>
+        <th data-col="momentumScore" title="Momentum Score (0-100). Rates how strong the stock's price trend is. Higher score = stronger upward momentum. Based on: proximity to 52-week high, trading above 50-day and 200-day moving averages.">Momentum</th>
+        <th data-col="yieldScore" title="Yield Score (0-100). Rates the stock's dividend income potential. Higher score = better dividend payout. Stocks with no dividend get a low score. Great dividends (4%+) score highest.">Yield</th>
+        <th data-col="compositeScore" style="min-width:130px;" title="Overall Composite Score (0-100). A weighted blend of all three scores: 35% Value + 45% Momentum + 20% Yield. Green (65+) = Strong. Yellow (40-64) = Neutral. Red (below 40) = Weak. Use this as a starting point for research, not as the sole reason to buy!">Score</th>
         <th data-col="trade" style="width:60px;cursor:default;"></th>
       </tr></thead>
       <tbody id="screenerBody">
@@ -598,6 +625,7 @@ var EMBEDDED = {
     appId:             '',
   }
 };
+
 
 // ============================================================
 // CONSTANTS
@@ -1080,6 +1108,172 @@ function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); re
 // ============================================================
 // STOCK LOOKUP
 // ============================================================
+// ============================================================
+// CANDLESTICK CHART
+// ============================================================
+var chartSymbol = '';
+var chartData = null;
+
+function fetchCandles(symbol, days) {
+  var now = Math.floor(Date.now() / 1000);
+  var from = now - days * 24 * 60 * 60;
+  return fetch('https://finnhub.io/api/v1/stock/candle?symbol=' + symbol.toUpperCase() + '&resolution=D&from=' + from + '&to=' + now + '&token=' + cfg.finnhubKey)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.s !== 'ok' || !d.c || !d.c.length) return null;
+      var candles = [];
+      for (var i = 0; i < d.c.length; i++) {
+        candles.push({ o: d.o[i], h: d.h[i], l: d.l[i], c: d.c[i], v: d.v[i], t: d.t[i] });
+      }
+      return candles;
+    }).catch(function() { return null; });
+}
+
+function loadChart(symbol, days) {
+  chartSymbol = symbol;
+  var container = document.getElementById('chartContainer');
+  container.style.display = 'block';
+
+  // Update active range button
+  document.querySelectorAll('.chart-range-btn').forEach(function(b) {
+    b.classList.toggle('active', parseInt(b.dataset.range) === days);
+  });
+
+  var canvas = document.getElementById('chartCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width = canvas.offsetWidth * 2;
+  var H = canvas.height = 520;
+  canvas.style.height = '260px';
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#7a8299';
+  ctx.font = '24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Loading chart...', W / 2, H / 2);
+
+  fetchCandles(symbol, days).then(function(candles) {
+    if (!candles || !candles.length) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#7a8299';
+      ctx.fillText('No chart data available', W / 2, H / 2);
+      return;
+    }
+    chartData = candles;
+    drawCandlestickChart(ctx, candles, W, H);
+  });
+}
+
+function drawCandlestickChart(ctx, candles, W, H) {
+  ctx.clearRect(0, 0, W, H);
+
+  var pad = { top: 20, bottom: 40, left: 80, right: 20 };
+  var chartW = W - pad.left - pad.right;
+  var chartH = H - pad.top - pad.bottom;
+
+  // Find price range
+  var allHigh = -Infinity, allLow = Infinity;
+  candles.forEach(function(c) {
+    if (c.h > allHigh) allHigh = c.h;
+    if (c.l < allLow) allLow = c.l;
+  });
+  var priceRange = allHigh - allLow;
+  if (priceRange === 0) priceRange = 1;
+  // Add 5% padding
+  allHigh += priceRange * 0.05;
+  allLow -= priceRange * 0.05;
+  priceRange = allHigh - allLow;
+
+  var n = candles.length;
+  var candleW = Math.max(2, Math.floor(chartW / n) - 2);
+  var gap = Math.max(1, Math.floor((chartW - candleW * n) / n));
+  var totalCandleW = candleW + gap;
+
+  function priceToY(price) {
+    return pad.top + chartH - ((price - allLow) / priceRange) * chartH;
+  }
+
+  // Draw grid lines and price labels
+  ctx.strokeStyle = 'rgba(42,48,69,0.6)';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#7a8299';
+  ctx.font = '20px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  var gridLines = 5;
+  for (var i = 0; i <= gridLines; i++) {
+    var price = allLow + (priceRange * i / gridLines);
+    var y = priceToY(price);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillText('$' + price.toFixed(2), pad.left - 8, y + 6);
+  }
+
+  // Draw date labels
+  ctx.textAlign = 'center';
+  ctx.font = '18px sans-serif';
+  var labelInterval = Math.max(1, Math.floor(n / 6));
+  for (var i = 0; i < n; i += labelInterval) {
+    var date = new Date(candles[i].t * 1000);
+    var label = (date.getMonth() + 1) + '/' + date.getDate();
+    var x = pad.left + i * totalCandleW + candleW / 2;
+    ctx.fillText(label, x, H - pad.bottom + 28);
+  }
+
+  // Draw candles
+  for (var i = 0; i < n; i++) {
+    var c = candles[i];
+    var x = pad.left + i * totalCandleW;
+    var isUp = c.c >= c.o;
+    var color = isUp ? '#22c55e' : '#ef4444';
+
+    var bodyTop = priceToY(Math.max(c.o, c.c));
+    var bodyBot = priceToY(Math.min(c.o, c.c));
+    var bodyH = Math.max(1, bodyBot - bodyTop);
+
+    // Wick (high to low line)
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, candleW > 6 ? 2 : 1);
+    ctx.beginPath();
+    ctx.moveTo(x + candleW / 2, priceToY(c.h));
+    ctx.lineTo(x + candleW / 2, priceToY(c.l));
+    ctx.stroke();
+
+    // Body
+    ctx.fillStyle = color;
+    if (isUp && candleW > 4) {
+      // Hollow green candle
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, bodyTop, candleW - 2, bodyH);
+    } else {
+      ctx.fillRect(x, bodyTop, candleW, bodyH);
+    }
+  }
+
+  // Draw current price line
+  var lastPrice = candles[n - 1].c;
+  var lastY = priceToY(lastPrice);
+  ctx.strokeStyle = '#4f8ef7';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(pad.left, lastY);
+  ctx.lineTo(W - pad.right, lastY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#4f8ef7';
+  ctx.font = 'bold 20px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('$' + lastPrice.toFixed(2), W - pad.right + 4, lastY + 6);
+}
+
+// Chart range button clicks
+document.querySelectorAll('.chart-range-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (chartSymbol) loadChart(chartSymbol, parseInt(btn.dataset.range));
+  });
+});
+
 // Symbol search - type a name, get matching tickers
 var searchTimeout = null;
 document.getElementById('tickerInput').addEventListener('input', function() {
@@ -1145,6 +1339,8 @@ function lookupStock() {
       stockNews.style.display='block';
       stockNewsList.innerHTML='<div style="color:var(--muted);font-size:13px;">Loading news...</div>';
       fetchStockNews(symbol).then(function(news){ renderNewsItems(news,'stockNewsList'); });
+    // Load candlestick chart
+    loadChart(symbol, 30);
     }
   }).catch(function(){ showToast('Could not find "' + symbol + '". Check the symbol.','error'); })
   .then(function(){ setLoading(btn, false, 'Look Up'); });
