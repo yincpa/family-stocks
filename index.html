@@ -1117,16 +1117,23 @@ var chartData = null;
 function fetchCandles(symbol, days) {
   var now = Math.floor(Date.now() / 1000);
   var from = now - days * 24 * 60 * 60;
-  return fetch('https://finnhub.io/api/v1/stock/candle?symbol=' + symbol.toUpperCase() + '&resolution=D&from=' + from + '&to=' + now + '&token=' + cfg.finnhubKey)
-    .then(function(r) { return r.json(); })
+  var url = 'https://finnhub.io/api/v1/stock/candle?symbol=' + symbol.toUpperCase() + '&resolution=D&from=' + from + '&to=' + now + '&token=' + cfg.finnhubKey;
+  return fetch(url)
+    .then(function(r) {
+      if (r.status === 429) { console.warn('Rate limited on candle API'); return {s:'rate_limit'}; }
+      return r.json();
+    })
     .then(function(d) {
-      if (d.s !== 'ok' || !d.c || !d.c.length) return null;
+      if (!d) return {candles:null, reason:'empty response'};
+      if (d.s === 'rate_limit') return {candles:null, reason:'Rate limited. Wait a moment and try again.'};
+      if (d.s === 'no_data') return {candles:null, reason:'No candle data available for this symbol.'};
+      if (d.s !== 'ok' || !d.c || !d.c.length) return {candles:null, reason:'No data returned (status: ' + (d.s||'unknown') + ')'};
       var candles = [];
       for (var i = 0; i < d.c.length; i++) {
         candles.push({ o: d.o[i], h: d.h[i], l: d.l[i], c: d.c[i], v: d.v[i], t: d.t[i] });
       }
-      return candles;
-    }).catch(function() { return null; });
+      return {candles:candles, reason:null};
+    }).catch(function(e) { return {candles:null, reason:'Network error: ' + e.message}; });
 }
 
 function loadChart(symbol, days) {
@@ -1150,15 +1157,20 @@ function loadChart(symbol, days) {
   ctx.textAlign = 'center';
   ctx.fillText('Loading chart...', W / 2, H / 2);
 
-  fetchCandles(symbol, days).then(function(candles) {
-    if (!candles || !candles.length) {
+  fetchCandles(symbol, days).then(function(result) {
+    if (!result.candles) {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#7a8299';
-      ctx.fillText('No chart data available', W / 2, H / 2);
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(result.reason || 'No chart data available', W / 2, H / 2 - 10);
+      ctx.font = '20px sans-serif';
+      ctx.fillStyle = '#4f8ef7';
+      ctx.fillText('Click a time range button to retry', W / 2, H / 2 + 25);
       return;
     }
-    chartData = candles;
-    drawCandlestickChart(ctx, candles, W, H);
+    chartData = result.candles;
+    drawCandlestickChart(ctx, result.candles, W, H);
   });
 }
 
@@ -1339,8 +1351,8 @@ function lookupStock() {
       stockNews.style.display='block';
       stockNewsList.innerHTML='<div style="color:var(--muted);font-size:13px;">Loading news...</div>';
       fetchStockNews(symbol).then(function(news){ renderNewsItems(news,'stockNewsList'); });
-    // Load candlestick chart
-    loadChart(symbol, 30);
+    // Load candlestick chart (delay to avoid rate limit)
+    setTimeout(function(){ loadChart(symbol, 30); }, 1500);
     }
   }).catch(function(){ showToast('Could not find "' + symbol + '". Check the symbol.','error'); })
   .then(function(){ setLoading(btn, false, 'Look Up'); });
