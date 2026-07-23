@@ -303,6 +303,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .chart-canvas-wrap{background:var(--surface);border-radius:var(--radius-sm);padding:8px 4px 4px;position:relative;}
 .chart-loading{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
 
+
+/* PENDING ORDERS */
+.pending-section{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;}
+.pending-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--amber);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.pending-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(245,158,11,0.15);font-size:13px;}
+.pending-item:last-child{border-bottom:none;}
+.pending-cancel{font-size:11px;color:var(--red);cursor:pointer;background:none;border:1px solid var(--red);border-radius:4px;padding:2px 8px;font-family:inherit;font-weight:600;}
+.pending-cancel:hover{background:var(--red);color:#fff;}
+
 </style>
 </head>
 <body>
@@ -445,6 +454,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   </div>
 </div>
 
+<!-- AFTER HOURS ORDER QUEUE -->
+<div class="overlay hidden" id="afterHoursOverlay">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title" style="color:var(--amber);">Market is Closed — Queue Order?</div>
+    <div class="modal-sub" style="margin-bottom:12px;">
+      The US stock market is currently closed. You can <b>queue this order</b> and it will automatically execute when the market opens tomorrow morning.
+    </div>
+    <div id="ahOrderSummary" style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;font-size:14px;line-height:1.7;"></div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;font-size:13px;line-height:1.6;border-left:3px solid var(--amber);">
+      <b>How this works (just like real markets):</b><br>
+      Your order will be held overnight and executed at the <b>actual market price</b> approximately 15 minutes after the market opens (9:45 AM ET). The execution price may be higher or lower than today's closing price — that's called <b>overnight risk</b>.
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="ahCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-full" id="ahQueueBtn" style="flex:2;background:var(--amber);color:#000;">Queue Order for Tomorrow</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="logo">Family <span>Stock</span> Challenge</div>
@@ -519,6 +547,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
           </div>
         </div>
       </div>
+    </div>
+    <div id="pendingOrdersSection" style="display:none;padding:0 0 0 0;">
     </div>
     <div class="card" style="overflow:visible;padding-left:0;padding-right:0;">
       <div style="padding:0 20px;">
@@ -892,6 +922,8 @@ function startApp() {
   startChat();
   renderMarketNews();
   setInterval(renderMarketNews, 30*60*1000);
+  // Check and execute any pending orders from after hours
+  setTimeout(checkAndExecutePendingOrders, 3000);
 }
 
 // ============================================================
@@ -1102,7 +1134,7 @@ function renderMarketSnapshot() {
     }).join('');
   });
 }
-function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); }
+function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); renderPendingOrders(); }
 
 // ============================================================
 // STOCK LOOKUP
@@ -1595,10 +1627,30 @@ document.getElementById('pinCancelBtn').addEventListener('click', function(){
 // ============================================================
 // BUY / SELL
 // ============================================================
+var pendingTradeAction = null;
+var pendingTradeDetails = null;
+
 function executeBuy() {
   if (!currentQuote) { showToast('Look up a stock first','error'); return; }
   var qty = parseInt(document.getElementById('qtyInput').value);
   if (!qty||qty<1) { showToast('Enter a valid quantity','error'); return; }
+  var p = portfolios[activePlayer];
+  var estTotal = qty * currentQuote.price;
+  if (estTotal > p.cash) { showToast('Not enough cash! Need ' + fmt(estTotal) + ', have ' + fmt(p.cash),'error'); return; }
+  if (!isMarketOpen()) {
+    pendingTradeDetails = {action:'BUY', symbol:currentQuote.symbol, shares:qty, lastClosePrice:currentQuote.price, playerId:activePlayer};
+    var playerName = (members.find(function(m){return m.id===activePlayer;})||{}).name||'';
+    document.getElementById('ahOrderSummary').innerHTML =
+      '<b>' + playerName + '</b> wants to <span style="color:var(--green);font-weight:700;">BUY ' + qty + ' share' + (qty!==1?'s':'') + ' of ' + currentQuote.symbol + '</span><br>' +
+      'Last close price: ' + fmt(currentQuote.price) + '<br>' +
+      'Estimated cost: <b>' + fmt(estTotal) + '</b> (actual price will be determined at market open)';
+    document.getElementById('afterHoursOverlay').classList.remove('hidden');
+    return;
+  }
+  doBuy(qty);
+}
+
+function doBuy(qty) {
   openPinModal(activePlayer, function() {
     var p = portfolios[activePlayer], total = qty*currentQuote.price;
     if (total > p.cash) { showToast('Not enough cash! Need ' + fmt(total) + ', have ' + fmt(p.cash),'error'); return; }
@@ -1623,6 +1675,20 @@ function executeSell() {
   if (!qty||qty<1) { showToast('Enter a valid quantity','error'); return; }
   var sym = currentQuote.symbol, p = portfolios[activePlayer], h = p&&p.holdings&&p.holdings[sym];
   if (!h||h.shares<qty) { showToast('You only own ' + (h&&h.shares||0) + ' shares of ' + sym,'error'); return; }
+  if (!isMarketOpen()) {
+    pendingTradeDetails = {action:'SELL', symbol:sym, shares:qty, lastClosePrice:currentQuote.price, playerId:activePlayer};
+    var playerName = (members.find(function(m){return m.id===activePlayer;})||{}).name||'';
+    document.getElementById('ahOrderSummary').innerHTML =
+      '<b>' + playerName + '</b> wants to <span style="color:var(--red);font-weight:700;">SELL ' + qty + ' share' + (qty!==1?'s':'') + ' of ' + sym + '</span><br>' +
+      'Last close price: ' + fmt(currentQuote.price) + '<br>' +
+      'Estimated proceeds: <b>' + fmt(qty * currentQuote.price) + '</b> (actual price will be determined at market open)';
+    document.getElementById('afterHoursOverlay').classList.remove('hidden');
+    return;
+  }
+  doSell(qty, sym, p, h);
+}
+
+function doSell(qty, sym, p, h) {
   openPinModal(activePlayer, function() {
     var total = qty*currentQuote.price, pnl = total-(qty*h.avgCost), newCash = p.cash+total;
     var hist = p.history ? (Array.isArray(p.history)?p.history:Object.values(p.history)) : [];
@@ -1820,6 +1886,171 @@ function sendChatMessage() {
 }
 document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
 document.getElementById('chatInput').addEventListener('keydown', function(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage();} });
+
+// ============================================================
+// AFTER HOURS HANDLERS
+// ============================================================
+document.getElementById('ahCancelBtn').addEventListener('click', function() {
+  document.getElementById('afterHoursOverlay').classList.add('hidden');
+  pendingTradeDetails = null;
+});
+
+document.getElementById('ahQueueBtn').addEventListener('click', function() {
+  if (!pendingTradeDetails) return;
+  var btn = document.getElementById('ahQueueBtn');
+  // Require PIN before queuing
+  openPinModal(pendingTradeDetails.playerId, function() {
+    var orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    var order = {
+      id: orderId,
+      action: pendingTradeDetails.action,
+      symbol: pendingTradeDetails.symbol,
+      shares: pendingTradeDetails.shares,
+      lastClosePrice: pendingTradeDetails.lastClosePrice,
+      playerId: pendingTradeDetails.playerId,
+      playerName: (members.find(function(m){return m.id===pendingTradeDetails.playerId;})||{}).name||'',
+      queuedAt: Date.now(),
+      status: 'pending'
+    };
+    fbSet('pendingOrders/' + orderId, order).then(function() {
+      document.getElementById('afterHoursOverlay').classList.add('hidden');
+      pendingTradeDetails = null;
+      showToast('Order queued! Will execute at market open tomorrow.');
+    }).catch(function(e) {
+      showToast('Failed to queue order: ' + e.message, 'error');
+    });
+  });
+});
+
+// ============================================================
+// PENDING ORDER PROCESSING
+// ============================================================
+function checkAndExecutePendingOrders() {
+  if (!isMarketOpen()) return;
+  // Only execute after 9:45 AM ET (15 min buffer for quote delay)
+  var et = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  var h = et.getHours() + et.getMinutes()/60;
+  if (h < 9.75) return; // Before 9:45 AM ET
+
+  fbGet('pendingOrders').then(function(orders) {
+    if (!orders) return;
+    var orderList = Object.values(orders).filter(function(o){ return o.status === 'pending'; });
+    if (!orderList.length) return;
+
+    var chain = Promise.resolve();
+    orderList.forEach(function(order) {
+      chain = chain.then(function() {
+        return fetchQuote(order.symbol).then(function(quote) {
+          return executePendingOrder(order, quote.price);
+        }).catch(function(e) {
+          console.warn('Failed to execute pending order', order.id, e);
+        });
+      }).then(function() {
+        return new Promise(function(r){ setTimeout(r, 500); });
+      });
+    });
+  });
+}
+
+function executePendingOrder(order, currentPrice) {
+  var p = portfolios[order.playerId];
+  if (!p) return fbRemove('pendingOrders/' + order.id);
+
+  if (order.action === 'BUY') {
+    var total = order.shares * currentPrice;
+    if (total > p.cash) {
+      // Not enough cash at new price - cancel order
+      fbRemove('pendingOrders/' + order.id);
+      showToast(order.playerName + "'s queued BUY of " + order.symbol + " cancelled — not enough cash at " + fmt(currentPrice), 'error');
+      return Promise.resolve();
+    }
+    var newCash = p.cash - total;
+    var h = (p.holdings && p.holdings[order.symbol]) || {shares:0, avgCost:0};
+    var newShares = h.shares + order.shares;
+    var newAvg = (h.shares * h.avgCost + total) / newShares;
+    var hist = p.history ? (Array.isArray(p.history) ? p.history : Object.values(p.history)) : [];
+    hist.push({action:'BUY', symbol:order.symbol, shares:order.shares, price:currentPrice, total:total, cashAfter:newCash, ts:Date.now(), queued:true, queuedAt:order.queuedAt, lastClosePrice:order.lastClosePrice});
+    var updates = {};
+    updates['portfolios/' + order.playerId + '/cash'] = newCash;
+    updates['portfolios/' + order.playerId + '/holdings/' + order.symbol + '/shares'] = newShares;
+    updates['portfolios/' + order.playerId + '/holdings/' + order.symbol + '/avgCost'] = newAvg;
+    updates['portfolios/' + order.playerId + '/holdings/' + order.symbol + '/lastPrice'] = currentPrice;
+    return db.ref().update(updates).then(function() {
+      return fbSet('portfolios/' + order.playerId + '/history', hist);
+    }).then(function() {
+      return fbRemove('pendingOrders/' + order.id);
+    }).then(function() {
+      var diff = currentPrice - order.lastClosePrice;
+      var diffStr = diff >= 0 ? '+' + fmt(diff) : fmt(diff);
+      showToast(order.playerName + ' queued BUY of ' + order.shares + ' ' + order.symbol + ' filled at ' + fmt(currentPrice) + ' (' + diffStr + ' vs close)');
+    });
+
+  } else if (order.action === 'SELL') {
+    var h = p.holdings && p.holdings[order.symbol];
+    if (!h || h.shares < order.shares) {
+      fbRemove('pendingOrders/' + order.id);
+      showToast(order.playerName + "'s queued SELL of " + order.symbol + " cancelled — not enough shares", 'error');
+      return Promise.resolve();
+    }
+    var total = order.shares * currentPrice;
+    var pnl = total - (order.shares * h.avgCost);
+    var newCash = p.cash + total;
+    var hist = p.history ? (Array.isArray(p.history) ? p.history : Object.values(p.history)) : [];
+    hist.push({action:'SELL', symbol:order.symbol, shares:order.shares, price:currentPrice, total:total, pnl:pnl, cashAfter:newCash, ts:Date.now(), queued:true, queuedAt:order.queuedAt, lastClosePrice:order.lastClosePrice});
+    var updates = {};
+    updates['portfolios/' + order.playerId + '/cash'] = newCash;
+    updates['portfolios/' + order.playerId + '/holdings/' + order.symbol + '/shares'] = h.shares - order.shares;
+    updates['portfolios/' + order.playerId + '/holdings/' + order.symbol + '/lastPrice'] = currentPrice;
+    return db.ref().update(updates).then(function() {
+      return fbSet('portfolios/' + order.playerId + '/history', hist);
+    }).then(function() {
+      return fbRemove('pendingOrders/' + order.id);
+    }).then(function() {
+      var diff = currentPrice - order.lastClosePrice;
+      var diffStr = diff >= 0 ? '+' + fmt(diff) : fmt(diff);
+      showToast(order.playerName + ' queued SELL of ' + order.shares + ' ' + order.symbol + ' filled at ' + fmt(currentPrice) + ' (' + diffStr + ' vs close)');
+    });
+  }
+}
+
+function renderPendingOrders() {
+  var section = document.getElementById('pendingOrdersSection');
+  if (!section) return;
+  fbGet('pendingOrders').then(function(orders) {
+    if (!orders) { section.style.display = 'none'; return; }
+    var orderList = Object.values(orders).filter(function(o){ return o.status === 'pending'; });
+    // Filter to current player's orders for display, but show count for all
+    var myOrders = orderList.filter(function(o){ return o.playerId === activePlayer; });
+    var othersCount = orderList.length - myOrders.length;
+
+    if (!orderList.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    var html = '<div class="pending-section"><div class="pending-title">&#9201; Pending Orders (queued after hours)</div>';
+    myOrders.forEach(function(o) {
+      var timeStr = new Date(o.queuedAt).toLocaleString();
+      html += '<div class="pending-item">' +
+        '<div><span style="color:' + (o.action==='BUY'?'var(--green)':'var(--red)') + ';font-weight:700;">' + o.action + '</span> ' +
+        '<span class="ticker-badge">' + o.symbol + '</span> x' + o.shares +
+        '<span style="color:var(--muted);font-size:11px;margin-left:8px;">queued ' + timeStr + '</span></div>' +
+        '<button class="pending-cancel" data-oid="' + o.id + '">Cancel</button></div>';
+    });
+    if (othersCount > 0) {
+      html += '<div style="font-size:12px;color:var(--muted);margin-top:8px;">' + othersCount + ' other pending order' + (othersCount!==1?'s':'') + ' from other players</div>';
+    }
+    html += '</div>';
+    section.innerHTML = html;
+
+    section.querySelectorAll('.pending-cancel').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (!confirm('Cancel this pending order?')) return;
+        fbRemove('pendingOrders/' + btn.dataset.oid).then(function() {
+          showToast('Pending order cancelled.', 'info');
+          renderPendingOrders();
+        });
+      });
+    });
+  });
+}
 
 // ============================================================
 // EVENT WIRING
