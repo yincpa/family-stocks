@@ -25,6 +25,9 @@
 
   6. Upload to GitHub (replace the existing index.html)
 
+     OPTIONAL for AI weekly recaps:
+       anthropicKey: 'your-anthropic-api-key'
+
   ✅ EMBEDDED filled in = everyone opens straight to the trading screen
   ❌ EMBEDDED left blank = setup wizard appears
 
@@ -672,6 +675,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <div class="recap-header">
       <div class="recap-title">Weekly Recap</div>
       <div class="recap-dates" id="recapDates">Loading...</div>
+      <div id="recapCacheInfo" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+      <button class="btn btn-ghost btn-sm" id="recapRegenBtn" style="margin-top:10px;display:none;">Regenerate with AI</button>
     </div>
     <div id="recapContent">
       <div class="recap-empty">
@@ -690,14 +695,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 // EMBEDDED CONFIG — fill in before uploading to GitHub
 // ============================================================
 var EMBEDDED = {
-  finnhubKey:      '',
-  startingBalance: 0,
-  adminPassword:   '',
+  finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
+  startingBalance: 100000,
+  adminPassword:   'seattle1234’,
+ anthropicKey:   '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',
   firebaseConfig: {
-    apiKey:            '',
-    authDomain:        '',
-    databaseURL:       '',
-    projectId:         '',
+    apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
+    authDomain:        'family-stocks-2f1cb.firebaseapp.com',
+    databaseURL:       'https://family-stocks-2f1cb-default-rtdb.firebaseio.com',
+    projectId:         'family-stocks-2f1cb',
     storageBucket:     '',
     messagingSenderId: '',
     appId:             '',
@@ -903,7 +909,7 @@ function launchApp() {
 window.addEventListener('load', function() {
   // PATH 1: Embedded config filled in
   if (isEmbeddedConfigured()) {
-    cfg = {finnhubKey:EMBEDDED.finnhubKey, startingBalance:EMBEDDED.startingBalance, adminPassword:EMBEDDED.adminPassword, firebaseConfig:EMBEDDED.firebaseConfig};
+    cfg = {finnhubKey:EMBEDDED.finnhubKey, startingBalance:EMBEDDED.startingBalance, adminPassword:EMBEDDED.adminPassword, anthropicKey:EMBEDDED.anthropicKey||'', firebaseConfig:EMBEDDED.firebaseConfig};
     try { initFirebase(cfg.firebaseConfig); } catch(e) { showError('Firebase init failed: ' + e.message); return; }
     fbGet('config').then(function(fbCfg) {
       if (!fbCfg) {
@@ -1945,20 +1951,43 @@ function getWeekRange() {
   var now = new Date();
   var et = new Date(now.toLocaleString('en-US', {timeZone:'America/New_York'}));
   var day = et.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  // Find this week's Monday
+  var hour = et.getHours() + et.getMinutes() / 60;
+
+  // Determine if the current week is complete (after Friday 4 PM ET)
+  var isFriAfterClose = (day === 5 && hour >= 16);
+  var isWeekend = (day === 6 || day === 0);
+  var currentWeekComplete = isFriAfterClose || isWeekend;
+
+  // Find the target week's Monday
   var monday = new Date(et);
-  var diff = day === 0 ? -6 : 1 - day; // if Sunday, go back 6 days
-  monday.setDate(monday.getDate() + diff);
+  if (currentWeekComplete) {
+    // Show THIS week's recap (Mon-Fri that just ended)
+    if (day === 5) { // Friday after close
+      var diff = 4; // go back to Monday
+      monday.setDate(monday.getDate() - diff);
+    } else if (day === 6) { // Saturday
+      monday.setDate(monday.getDate() - 5);
+    } else { // Sunday
+      monday.setDate(monday.getDate() - 6);
+    }
+  } else {
+    // Week still in progress — show LAST week's recap
+    var diff = day === 0 ? 6 : day - 1; // days since last Monday
+    monday.setDate(monday.getDate() - diff - 7); // go back to PREVIOUS Monday
+  }
   monday.setHours(0,0,0,0);
-  // Friday end
+
+  // Friday end of that week
   var friday = new Date(monday);
   friday.setDate(friday.getDate() + 4);
   friday.setHours(23,59,59,999);
+
   return {
     monday: monday,
     friday: friday,
     monTs: monday.getTime(),
     friTs: friday.getTime(),
+    currentWeekComplete: currentWeekComplete,
     label: formatRecapDate(monday) + ' — ' + formatRecapDate(friday)
   };
 }
@@ -1972,6 +2001,10 @@ function formatRecapDate(d) {
 function generateWeeklyRecap() {
   var week = getWeekRange();
   document.getElementById('recapDates').textContent = week.label;
+  if (!week.currentWeekComplete) {
+    document.getElementById('recapDates').textContent += '  (last completed week)';
+    document.getElementById('recapCacheInfo').textContent = 'This week\'s recap will be available after market close on Friday (4:00 PM ET).';
+  }
 
   var recapData = members.map(function(m) {
     var p = portfolios[m.id];
@@ -2036,7 +2069,12 @@ function generateWeeklyRecap() {
   // Sort by weekly gain for ranking
   recapData.sort(function(a,b) { return b.weeklyGain - a.weeklyGain; });
 
-  renderRecap(recapData, week);
+  // Try AI-powered recap first, fall back to template
+  if (cfg && cfg.anthropicKey) {
+    generateAIRecap(recapData, week);
+  } else {
+    renderRecap(recapData, week);
+  }
 }
 
 function renderRecap(recapData, week) {
@@ -2083,9 +2121,8 @@ function generateCommentary(rd) {
   var lines = [];
   var name = rd.member.name;
 
-  // Opening line based on overall performance
   if (rd.trades.length === 0 && rd.holdings.length === 0) {
-    return name + ' sat on the sidelines this week with ' + fmt(rd.cash) + ' in cash. Sometimes the best move is no move — but the clock is ticking and the competition is heating up! Time to start researching some stocks.';
+    return name + ' sat on the sidelines this week with ' + fmt(rd.cash) + ' in cash. Sometimes the best move is no move, but the competition is heating up!';
   }
 
   if (rd.trades.length === 0) {
@@ -2094,84 +2131,191 @@ function generateCommentary(rd) {
     lines.push(name + ' made <span class="recap-highlight neutral">' + rd.trades.length + ' trade' + (rd.trades.length!==1?'s':'') + '</span> this week. ');
   }
 
-  // Buys
   if (rd.weekBuys.length > 0) {
     var buySymbols = [];
     rd.weekBuys.forEach(function(t) { if (buySymbols.indexOf(t.symbol) < 0) buySymbols.push(t.symbol); });
     var totalBuySpend = rd.weekBuys.reduce(function(s,t){return s+t.total;}, 0);
-    lines.push('Bought into <b>' + buySymbols.join(', ') + '</b>, investing ' + fmt(totalBuySpend) + ' total. ');
-
-    // Check if any buys were particularly large
-    rd.weekBuys.forEach(function(t) {
-      if (t.total > rd.netWorth * 0.2) {
-        lines.push('The <b>' + t.symbol + '</b> position (' + t.shares + ' shares at ' + fmt(t.price) + ') was a big bet — ');
-        // Check current performance of this holding
-        var holding = rd.holdings.find(function(h){return h.symbol === t.symbol;});
-        if (holding) {
-          if (holding.pnlPct > 2) lines.push('<span class="recap-highlight gain">paying off nicely at +' + holding.pnlPct.toFixed(1) + '%</span>. ');
-          else if (holding.pnlPct < -2) lines.push('<span class="recap-highlight loss">currently underwater at ' + holding.pnlPct.toFixed(1) + '%</span>. ');
-          else lines.push('holding steady for now. ');
-        }
-      }
-    });
+    lines.push('Bought into <b>' + buySymbols.join(', ') + '</b>, investing ' + fmt(totalBuySpend) + '. ');
   }
 
-  // Sells
   if (rd.weekSells.length > 0) {
     var profitSells = rd.weekSells.filter(function(t){return t.pnl && t.pnl > 0;});
     var lossSells = rd.weekSells.filter(function(t){return t.pnl && t.pnl < 0;});
-
     if (profitSells.length > 0) {
       var totalProfit = profitSells.reduce(function(s,t){return s+(t.pnl||0);},0);
-      lines.push('Locked in <span class="recap-highlight gain">+' + fmt(totalProfit) + ' in realized profits</span> from ' + profitSells.length + ' winning sale' + (profitSells.length!==1?'s':'') + '. ');
-      // Highlight best sale
-      profitSells.sort(function(a,b){return (b.pnl||0)-(a.pnl||0);});
-      var best = profitSells[0];
-      lines.push('Best exit: sold ' + best.shares + ' shares of <b>' + best.symbol + '</b> for a ' + fmt(best.pnl) + ' gain — nice timing! ');
+      lines.push('Locked in <span class="recap-highlight gain">+' + fmt(totalProfit) + ' in profits</span>. ');
     }
-
     if (lossSells.length > 0) {
       var totalLoss = lossSells.reduce(function(s,t){return s+(t.pnl||0);},0);
-      lines.push('Took <span class="recap-highlight loss">' + fmt(totalLoss) + ' in losses</span> on ' + lossSells.length + ' sale' + (lossSells.length!==1?'s':'') + '. ');
-      lossSells.sort(function(a,b){return (a.pnl||0)-(b.pnl||0);});
-      var worst = lossSells[0];
-      lines.push('Toughest exit: ' + worst.shares + ' shares of <b>' + worst.symbol + '</b> at a ' + fmt(worst.pnl) + ' loss. Sometimes cutting losses early is the smart play. ');
+      lines.push('Took <span class="recap-highlight loss">' + fmt(totalLoss) + ' in losses</span>. ');
     }
   }
 
-  // Top and bottom movers in current portfolio
   if (rd.topMover && rd.holdings.length > 1) {
-    if (rd.topMover.pnlPct > 0) {
-      lines.push('Portfolio star: <b>' + rd.topMover.symbol + '</b> is the top performer at <span class="recap-highlight gain">+' + rd.topMover.pnlPct.toFixed(1) + '%</span> (' + fmt(rd.topMover.pnl) + ' unrealized gain). ');
-    }
-    if (rd.bottomMover && rd.bottomMover.pnlPct < 0) {
-      lines.push('Drag on the portfolio: <b>' + rd.bottomMover.symbol + '</b> is down <span class="recap-highlight loss">' + rd.bottomMover.pnlPct.toFixed(1) + '%</span> (' + fmt(rd.bottomMover.pnl) + '). Worth watching — hold or cut? ');
-    }
+    if (rd.topMover.pnlPct > 0) lines.push('Top performer: <b>' + rd.topMover.symbol + '</b> at <span class="recap-highlight gain">+' + rd.topMover.pnlPct.toFixed(1) + '%</span>. ');
+    if (rd.bottomMover && rd.bottomMover.pnlPct < 0) lines.push('Weakest: <b>' + rd.bottomMover.symbol + '</b> at <span class="recap-highlight loss">' + rd.bottomMover.pnlPct.toFixed(1) + '%</span>. ');
   }
 
-  // Cash position
-  var cashPct = (rd.cash / rd.netWorth) * 100;
-  if (cashPct > 50) {
-    lines.push('Sitting on <b>' + fmt(rd.cash) + ' in cash</b> (' + cashPct.toFixed(0) + '% of portfolio). Lots of dry powder for opportunities — but cash doesn\x27t grow! ');
-  } else if (cashPct < 10) {
-    lines.push('Nearly fully invested with only ' + fmt(rd.cash) + ' in cash. Bold strategy — but no room for new opportunities if something comes up. ');
-  }
-
-  // Closing
-  if (rd.weeklyGain > 0) {
-    lines.push('Overall a <span class="recap-highlight gain">green week</span> — keep the momentum going!');
-  } else if (rd.weeklyGain < 0) {
-    lines.push('A <span class="recap-highlight loss">red week</span> — but remember, the best investors learn more from losses than wins.');
-  } else {
-    lines.push('Breaking even — the market giveth and the market taketh away. Next week is a new chapter!');
-  }
+  if (rd.weeklyGain > 0) lines.push('<span class="recap-highlight gain">Green week!</span>');
+  else if (rd.weeklyGain < 0) lines.push('<span class="recap-highlight loss">Red week.</span>');
 
   return lines.join('');
+}
+
+// ============================================================
+// AI-POWERED COMMENTARY (via Anthropic API)
+// ============================================================
+function getRecapCacheKey(week) {
+  return 'recap_' + week.monday.toISOString().slice(0,10);
+}
+
+function generateAIRecap(recapData, week) {
+  var cacheKey = getRecapCacheKey(week);
+
+  // Check Firebase cache first
+  fbGet('recapCache/' + cacheKey).then(function(cached) {
+    if (cached && cached.html) {
+      document.getElementById('recapContent').innerHTML = cached.html;
+      document.getElementById('recapCacheInfo').textContent = 'AI recap generated ' + new Date(cached.generatedAt).toLocaleString() + ' (cached)';
+      document.getElementById('recapRegenBtn').style.display = 'inline-flex';
+      return;
+    }
+    // No cache — generate fresh
+    callAnthropicForRecap(recapData, week, cacheKey);
+  }).catch(function() {
+    callAnthropicForRecap(recapData, week, cacheKey);
+  });
+}
+
+function callAnthropicForRecap(recapData, week, cacheKey) {
+  if (!cfg.anthropicKey) {
+    // No API key — fall back to rule-based
+    renderRecap(recapData, week);
+    document.getElementById('recapCacheInfo').textContent = 'Using template commentary. Add your Anthropic API key to EMBEDDED for AI-generated recaps.';
+    return;
+  }
+
+  document.getElementById('recapContent').innerHTML =
+    '<div class="recap-empty"><div style="font-size:32px;margin-bottom:12px;">\u270D\uFE0F</div>' +
+    '<div style="font-size:16px;font-weight:600;margin-bottom:8px;">Claude is writing your recap...</div>' +
+    '<div>Analyzing trades and crafting personalized commentary.</div></div>';
+
+  // Build the prompt with all player data
+  var prompt = 'You are writing a fun, engaging weekly investment recap newsletter for a family stock trading competition. ';
+  prompt += 'This is an educational simulator where family members compete with fake money. ';
+  prompt += 'Week: ' + week.label + '. Starting balance: ' + fmt(cfg.startingBalance) + ' each.\n\n';
+
+  recapData.forEach(function(rd) {
+    prompt += '--- PLAYER: ' + rd.member.name + ' ---\n';
+    prompt += 'Net worth: ' + fmt(rd.netWorth) + ' (cash: ' + fmt(rd.cash) + ', holdings: ' + fmt(rd.holdingsValue) + ')\n';
+    prompt += 'Overall gain/loss: ' + (rd.weeklyGain>=0?'+':'') + fmt(rd.weeklyGain) + ' (' + rd.weeklyPct.toFixed(2) + '%)\n';
+    prompt += 'Trades this week: ' + rd.trades.length + '\n';
+    if (rd.weekBuys.length > 0) {
+      prompt += 'Buys: ';
+      rd.weekBuys.forEach(function(t) { prompt += t.shares + 'x ' + t.symbol + ' @ ' + fmt(t.price) + ', '; });
+      prompt += '\n';
+    }
+    if (rd.weekSells.length > 0) {
+      prompt += 'Sells: ';
+      rd.weekSells.forEach(function(t) { prompt += t.shares + 'x ' + t.symbol + ' @ ' + fmt(t.price) + ' (P&L: ' + fmt(t.pnl||0) + '), '; });
+      prompt += '\n';
+    }
+    if (rd.holdings.length > 0) {
+      prompt += 'Current holdings: ';
+      rd.holdings.forEach(function(h) { prompt += h.symbol + ' (' + h.shares + ' shares, ' + (h.pnlPct>=0?'+':'') + h.pnlPct.toFixed(1) + '%), '; });
+      prompt += '\n';
+    }
+    prompt += '\n';
+  });
+
+  prompt += 'Write the recap in two sections:\n';
+  prompt += '1. RANKING: A brief paragraph ranking all players for the week with their gains/losses. Make it fun and competitive.\n';
+  prompt += '2. PLAYER HIGHLIGHTS: A separate paragraph for EACH player (use their name as a header). For each player, highlight:\n';
+  prompt += '   - Their best and worst trades or decisions this week\n';
+  prompt += '   - Their top and bottom performing holdings\n';
+  prompt += '   - Whether they are being too aggressive, too conservative, or well-balanced\n';
+  prompt += '   - A specific actionable suggestion for next week\n';
+  prompt += '   - Reference the family competition and other players when relevant\n\n';
+  prompt += 'Keep the tone friendly, encouraging but honest. Use specific numbers. Make it feel like a real investment newsletter that a family would enjoy reading together. Keep each player section to about 3-5 sentences. Do NOT use markdown formatting — use plain HTML with <b> for bold and <br> for line breaks.';
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': cfg.anthropicKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{role: 'user', content: prompt}]
+    })
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('API returned ' + r.status);
+    return r.json();
+  })
+  .then(function(data) {
+    var text = data.content.map(function(c){return c.text||'';}).join('');
+
+    // Build the final HTML with ranking section + AI commentary
+    var html = '';
+
+    // Keep the data-driven ranking at the top
+    html += '<div class="recap-ranking"><div class="recap-section-title">Weekly Performance Ranking</div>';
+    recapData.forEach(function(rd, i) {
+      var m = rd.member;
+      var c = memberColor(m);
+      var isPositive = rd.weeklyGain >= 0;
+      var avatarContent = m.avatarImg ? '<img class="avatar-img" src="' + m.avatarImg + '" alt="">' : (m.emoji||memberInitials(m.name));
+      html += '<div class="recap-rank-row">' +
+        '<div class="recap-rank-num" style="color:' + (i===0?'var(--gold)':i===1?'#9ca3af':'#b45309') + ';">' + rankEmoji(i) + '</div>' +
+        '<div class="avatar" style="background:' + c.bg + ';color:' + c.color + ';">' + avatarContent + '</div>' +
+        '<div class="recap-rank-info"><div class="recap-rank-name">' + m.name + '</div>' +
+        '<div class="recap-rank-detail">Net Worth: ' + fmt(rd.netWorth) + ' \u00B7 ' + rd.trades.length + ' trade' + (rd.trades.length!==1?'s':'') + '</div></div>' +
+        '<div class="recap-rank-change"><div class="recap-rank-amount" style="color:' + (isPositive?'var(--green)':'var(--red)') + ';">' + (isPositive?'+':'') + fmt(rd.weeklyGain) + '</div>' +
+        '<div class="recap-rank-pct" style="color:' + (isPositive?'var(--green)':'var(--red)') + ';">' + (isPositive?'+':'') + rd.weeklyPct.toFixed(2) + '% overall</div></div></div>';
+    });
+    html += '</div>';
+
+    // AI-generated commentary
+    html += '<div class="recap-blog"><div class="recap-section-title">AI Commentary by Claude</div>';
+    html += '<div class="recap-player-card"><div class="recap-text">' + text + '</div></div>';
+    html += '</div>';
+
+    document.getElementById('recapContent').innerHTML = html;
+    document.getElementById('recapCacheInfo').textContent = 'AI recap generated just now';
+    document.getElementById('recapRegenBtn').style.display = 'inline-flex';
+
+    // Cache in Firebase
+    fbSet('recapCache/' + cacheKey, {
+      html: html,
+      generatedAt: Date.now(),
+      week: week.label
+    });
+  })
+  .catch(function(e) {
+    console.error('AI recap failed:', e);
+    // Fall back to rule-based
+    renderRecap(recapData, week);
+    document.getElementById('recapCacheInfo').textContent = 'AI generation failed (' + e.message + '). Showing template recap.';
+  });
 }
 
 // Generate recap when the tab is clicked
 document.querySelector('[data-page="recap"]').addEventListener('click', function() {
   setTimeout(generateWeeklyRecap, 100);
+});
+
+// Regenerate button
+document.getElementById('recapRegenBtn').addEventListener('click', function() {
+  var week = getWeekRange();
+  var cacheKey = getRecapCacheKey(week);
+  // Clear cache and regenerate
+  fbRemove('recapCache/' + cacheKey).then(function() {
+    generateWeeklyRecap();
+  });
 });
 
 // ============================================================
