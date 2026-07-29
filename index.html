@@ -156,11 +156,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .hist-badge.BUY{background:rgba(34,197,94,.15);color:var(--green);}
 .hist-badge.SELL{background:rgba(239,68,68,.15);color:var(--red);}
 .hist-meta{color:var(--muted);font-size:11px;margin-top:3px;}
-.lb-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.lb-row{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);}
 .lb-row:last-child{border-bottom:none;}
 .lb-rank{font-size:18px;width:28px;text-align:center;}
 .lb-info{flex:1;min-width:0;}
-.lb-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-name{font-weight:600;font-size:14px;}
 .lb-sub{font-size:11px;color:var(--muted);margin-top:1px;}
 .lb-value{text-align:right;flex-shrink:0;}
 .lb-total{font-family:ui-monospace,'SF Mono','Monaco',monospace;font-weight:700;font-size:15px;}
@@ -311,6 +311,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .pending-item:last-child{border-bottom:none;}
 .pending-cancel{font-size:11px;color:var(--red);cursor:pointer;background:none;border:1px solid var(--red);border-radius:4px;padding:2px 8px;font-family:inherit;font-weight:600;}
 .pending-cancel:hover{background:var(--red);color:#fff;}
+
+
+/* WEEKLY RECAP */
+.recap-page{max-width:900px;margin:0 auto;padding:24px;}
+.recap-header{text-align:center;margin-bottom:32px;}
+.recap-title{font-size:24px;font-weight:700;margin-bottom:4px;}
+.recap-dates{font-size:14px;color:var(--muted);}
+.recap-ranking{margin-bottom:32px;}
+.recap-rank-row{display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;}
+.recap-rank-num{font-size:24px;font-weight:700;width:36px;text-align:center;flex-shrink:0;}
+.recap-rank-info{flex:1;}
+.recap-rank-name{font-size:16px;font-weight:600;}
+.recap-rank-detail{font-size:13px;color:var(--muted);margin-top:2px;}
+.recap-rank-change{text-align:right;flex-shrink:0;}
+.recap-rank-amount{font-size:20px;font-weight:700;font-family:ui-monospace,monospace;}
+.recap-rank-pct{font-size:12px;margin-top:2px;}
+.recap-blog{margin-bottom:24px;}
+.recap-player-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;}
+.recap-player-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.recap-player-name{font-size:18px;font-weight:700;}
+.recap-player-subtitle{font-size:12px;color:var(--muted);margin-top:2px;}
+.recap-text{font-size:14px;line-height:1.8;color:var(--text);}
+.recap-text b{color:var(--accent);}
+.recap-highlight{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;margin:0 2px;}
+.recap-highlight.gain{background:rgba(34,197,94,0.15);color:var(--green);}
+.recap-highlight.loss{background:rgba(239,68,68,0.15);color:var(--red);}
+.recap-highlight.neutral{background:rgba(79,142,247,0.15);color:var(--accent);}
+.recap-section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;}
+.recap-empty{text-align:center;padding:60px 24px;color:var(--muted);}
+.recap-refresh-btn{margin-top:16px;}
 
 </style>
 </head>
@@ -487,6 +517,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 <div class="top-nav" id="topNav">
   <button class="top-nav-btn active" data-page="trading">Trading</button>
   <button class="top-nav-btn" data-page="screener">Stock Screener</button>
+  <button class="top-nav-btn" data-page="recap">Weekly Recap</button>
 </div>
 
 <!-- PAGE: TRADING -->
@@ -635,6 +666,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   </div>
 </div><!-- /page-screener -->
 
+<!-- PAGE: WEEKLY RECAP -->
+<div class="page" id="page-recap">
+  <div class="recap-page">
+    <div class="recap-header">
+      <div class="recap-title">Weekly Recap</div>
+      <div class="recap-dates" id="recapDates">Loading...</div>
+    </div>
+    <div id="recapContent">
+      <div class="recap-empty">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Generating Weekly Recap...</div>
+        <div>Analyzing this week's trades and portfolio performance.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -642,14 +690,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 // EMBEDDED CONFIG — fill in before uploading to GitHub
 // ============================================================
 var EMBEDDED = {
-  finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
-  startingBalance: 100000,
-  adminPassword:   'seattle123',
+  finnhubKey:      '',
+  startingBalance: 0,
+  adminPassword:   '',
   firebaseConfig: {
-    apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
-    authDomain:        'family-stocks-2f1cb.firebaseapp.com',
-    databaseURL:       'https://family-stocks-2f1cb-default-rtdb.firebaseio.com',
-    projectId:         'family-stocks-2f1cb',
+    apiKey:            '',
+    authDomain:        '',
+    databaseURL:       '',
+    projectId:         '',
     storageBucket:     '',
     messagingSenderId: '',
     appId:             '',
@@ -1107,20 +1155,23 @@ function renderHistory() {
   var container = document.getElementById('historyContainer');
   if (!p||!p.history||!p.history.length) { container.innerHTML='<div class="empty"><div class="empty-icon">📋</div>No trades yet.</div>'; return; }
   var hist = Array.isArray(p.history) ? p.history : Object.values(p.history);
-  container.innerHTML = hist.slice().reverse().slice(0,50).map(function(t) {
+  var reversed = hist.slice().reverse();
+  container.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">' + hist.length + ' total trade' + (hist.length!==1?'s':'') + '</div>' +
+  '<div style="max-height:500px;overflow-y:auto;">' + reversed.map(function(t) {
     return '<div class="hist-row"><span class="hist-badge ' + t.action + '">' + t.action + '</span><strong>' + t.symbol + '</strong> — ' + t.shares + ' share' + (t.shares!==1?'s':'') + ' @ ' + fmt(t.price) +
       '<span style="float:right;font-family:ui-monospace,monospace;color:' + (t.action==='BUY'?'var(--red)':'var(--green)') + ';">' + (t.action==='BUY'?'-':'+') + fmt(t.total) + '</span>' +
       '<div class="hist-meta">' + new Date(t.ts).toLocaleString() + ' · Balance after: ' + fmt(t.cashAfter) + '</div></div>';
-  }).join('');
+  }).join('') + '</div>';
 }
 function renderLeaderboard() {
   var entries = members.map(function(m) {
     var p = portfolios[m.id], hv = p?calcHoldingsValue(p):0, nw = p?p.cash+hv:(cfg&&cfg.startingBalance||0);
     var gain = nw - (cfg&&cfg.startingBalance||0);
-    return {m:m, nw:nw, gain:gain, gainPct:(gain/(cfg&&cfg.startingBalance||1))*100};
+    var hist = p&&p.history ? (Array.isArray(p.history)?p.history:Object.values(p.history)) : [];
+    return {m:m, nw:nw, gain:gain, gainPct:(gain/(cfg&&cfg.startingBalance||1))*100, trades:hist.length};
   }).sort(function(a,b){ return b.nw-a.nw; });
   document.getElementById('leaderboard').innerHTML = entries.map(function(e,i) {
-    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div>' + (function(){ var c=memberColor(e.m); var av=e.m.avatarImg?'<img class="avatar-img" src="'+e.m.avatarImg+'" alt="">':( e.m.emoji||memberInitials(e.m.name)); return '<div class="avatar" style="background:'+c.bg+';color:'+c.color+';font-size:20px;width:44px;height:44px;">'+av+'</div>'; })() + '<div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'\u25B2':'\u25BC') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div></div></div>';
+    return '<div class="lb-row"><div class="lb-rank">' + rankEmoji(i) + '</div>' + (function(){ var c=memberColor(e.m); var av=e.m.avatarImg?'<img class="avatar-img" src="'+e.m.avatarImg+'" alt="">':( e.m.emoji||memberInitials(e.m.name)); return '<div class="avatar" style="background:'+c.bg+';color:'+c.color+';font-size:20px;width:44px;height:44px;">'+av+'</div>'; })() + '<div class="lb-info"><div class="lb-name">' + e.m.name + '</div><div class="lb-sub">' + (e.gainPct>=0?'\u25B2':'\u25BC') + ' ' + Math.abs(e.gainPct).toFixed(2) + '% return</div></div><div class="lb-value"><div class="lb-total">' + fmt(e.nw) + '</div><div class="lb-gain" style="color:' + (e.gain>=0?'var(--green)':'var(--red)') + ';">' + (e.gain>=0?'+':'') + fmt(e.gain) + '</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">' + e.trades + ' trade' + (e.trades!==1?'s':'') + '</div></div></div>';
   }).join('');
 }
 function renderTip() { document.getElementById('tipText').innerHTML = TIPS[tipIndex % TIPS.length]; }
@@ -1886,6 +1937,242 @@ function sendChatMessage() {
 }
 document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
 document.getElementById('chatInput').addEventListener('keydown', function(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage();} });
+
+// ============================================================
+// WEEKLY RECAP
+// ============================================================
+function getWeekRange() {
+  var now = new Date();
+  var et = new Date(now.toLocaleString('en-US', {timeZone:'America/New_York'}));
+  var day = et.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  // Find this week's Monday
+  var monday = new Date(et);
+  var diff = day === 0 ? -6 : 1 - day; // if Sunday, go back 6 days
+  monday.setDate(monday.getDate() + diff);
+  monday.setHours(0,0,0,0);
+  // Friday end
+  var friday = new Date(monday);
+  friday.setDate(friday.getDate() + 4);
+  friday.setHours(23,59,59,999);
+  return {
+    monday: monday,
+    friday: friday,
+    monTs: monday.getTime(),
+    friTs: friday.getTime(),
+    label: formatRecapDate(monday) + ' — ' + formatRecapDate(friday)
+  };
+}
+
+function formatRecapDate(d) {
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+}
+
+function generateWeeklyRecap() {
+  var week = getWeekRange();
+  document.getElementById('recapDates').textContent = week.label;
+
+  var recapData = members.map(function(m) {
+    var p = portfolios[m.id];
+    if (!p) return {member:m, trades:[], weeklyGain:0, weeklyPct:0, topMover:null, bottomMover:null, netWorth:cfg.startingBalance};
+
+    // Get trades this week
+    var hist = p.history ? (Array.isArray(p.history) ? p.history : Object.values(p.history)) : [];
+    var weekTrades = hist.filter(function(t) { return t.ts >= week.monTs && t.ts <= week.friTs; });
+
+    // Calculate current net worth
+    var holdingsValue = 0;
+    var holdingPerformance = [];
+    if (p.holdings) {
+      Object.keys(p.holdings).forEach(function(sym) {
+        var h = p.holdings[sym];
+        if (h.shares > 0) {
+          var curPrice = h.lastPrice || h.avgCost;
+          var value = h.shares * curPrice;
+          var cost = h.shares * h.avgCost;
+          var pnl = value - cost;
+          var pnlPct = ((curPrice - h.avgCost) / h.avgCost) * 100;
+          holdingsValue += value;
+          holdingPerformance.push({symbol:sym, shares:h.shares, value:value, pnl:pnl, pnlPct:pnlPct, price:curPrice, dayChange:h.dayChange||0});
+        }
+      });
+    }
+    var netWorth = p.cash + holdingsValue;
+
+    // Estimate weekly gain from trades
+    var weekBuyCost = 0, weekSellProceeds = 0, weekRealizedPnl = 0;
+    weekTrades.forEach(function(t) {
+      if (t.action === 'BUY') weekBuyCost += t.total;
+      if (t.action === 'SELL') { weekSellProceeds += t.total; weekRealizedPnl += (t.pnl || 0); }
+    });
+
+    // Sort holdings by performance
+    holdingPerformance.sort(function(a,b) { return b.pnlPct - a.pnlPct; });
+    var topMover = holdingPerformance.length > 0 ? holdingPerformance[0] : null;
+    var bottomMover = holdingPerformance.length > 1 ? holdingPerformance[holdingPerformance.length-1] : null;
+
+    // Weekly gain estimate (net worth change from starting balance adjusted for trades)
+    var weeklyGain = netWorth - cfg.startingBalance;
+    var weeklyPct = (weeklyGain / cfg.startingBalance) * 100;
+
+    return {
+      member: m,
+      trades: weekTrades,
+      weeklyGain: weeklyGain,
+      weeklyPct: weeklyPct,
+      netWorth: netWorth,
+      cash: p.cash,
+      holdingsValue: holdingsValue,
+      topMover: topMover,
+      bottomMover: bottomMover,
+      holdings: holdingPerformance,
+      weekBuys: weekTrades.filter(function(t){return t.action==='BUY';}),
+      weekSells: weekTrades.filter(function(t){return t.action==='SELL';}),
+      weekRealizedPnl: weekRealizedPnl
+    };
+  });
+
+  // Sort by weekly gain for ranking
+  recapData.sort(function(a,b) { return b.weeklyGain - a.weeklyGain; });
+
+  renderRecap(recapData, week);
+}
+
+function renderRecap(recapData, week) {
+  var html = '';
+
+  // Weekly Ranking
+  html += '<div class="recap-ranking"><div class="recap-section-title">Weekly Performance Ranking</div>';
+  recapData.forEach(function(rd, i) {
+    var m = rd.member;
+    var c = memberColor(m);
+    var isPositive = rd.weeklyGain >= 0;
+    var avatarContent = m.avatarImg ? '<img class="avatar-img" src="' + m.avatarImg + '" alt="">' : (m.emoji||memberInitials(m.name));
+    html += '<div class="recap-rank-row">' +
+      '<div class="recap-rank-num" style="color:' + (i===0?'var(--gold)':i===1?'#9ca3af':'#b45309') + ';">' + rankEmoji(i) + '</div>' +
+      '<div class="avatar" style="background:' + c.bg + ';color:' + c.color + ';">' + avatarContent + '</div>' +
+      '<div class="recap-rank-info"><div class="recap-rank-name">' + m.name + '</div>' +
+      '<div class="recap-rank-detail">Net Worth: ' + fmt(rd.netWorth) + ' · ' + rd.trades.length + ' trade' + (rd.trades.length!==1?'s':'') + ' this week</div></div>' +
+      '<div class="recap-rank-change"><div class="recap-rank-amount" style="color:' + (isPositive?'var(--green)':'var(--red)') + ';">' + (isPositive?'+':'') + fmt(rd.weeklyGain) + '</div>' +
+      '<div class="recap-rank-pct" style="color:' + (isPositive?'var(--green)':'var(--red)') + ';">' + (isPositive?'+':'') + rd.weeklyPct.toFixed(2) + '% overall</div></div></div>';
+  });
+  html += '</div>';
+
+  // Player Blogs
+  html += '<div class="recap-blog"><div class="recap-section-title">Player Highlights</div>';
+  recapData.forEach(function(rd) {
+    var m = rd.member;
+    var c = memberColor(m);
+    var avatarContent = m.avatarImg ? '<img class="avatar-img" src="' + m.avatarImg + '" alt="">' : (m.emoji||memberInitials(m.name));
+    var isPositive = rd.weeklyGain >= 0;
+
+    html += '<div class="recap-player-card">' +
+      '<div class="recap-player-header">' +
+      '<div class="avatar" style="background:' + c.bg + ';color:' + c.color + ';width:48px;height:48px;font-size:20px;">' + avatarContent + '</div>' +
+      '<div><div class="recap-player-name">' + m.name + '</div>' +
+      '<div class="recap-player-subtitle">' + (isPositive?'Up':'Down') + ' ' + Math.abs(rd.weeklyPct).toFixed(2) + '% · ' + fmt(rd.netWorth) + ' net worth</div></div></div>' +
+      '<div class="recap-text">' + generateCommentary(rd) + '</div></div>';
+  });
+  html += '</div>';
+
+  document.getElementById('recapContent').innerHTML = html;
+}
+
+function generateCommentary(rd) {
+  var lines = [];
+  var name = rd.member.name;
+
+  // Opening line based on overall performance
+  if (rd.trades.length === 0 && rd.holdings.length === 0) {
+    return name + ' sat on the sidelines this week with ' + fmt(rd.cash) + ' in cash. Sometimes the best move is no move — but the clock is ticking and the competition is heating up! Time to start researching some stocks.';
+  }
+
+  if (rd.trades.length === 0) {
+    lines.push(name + ' played the hold game this week with no new trades. ');
+  } else {
+    lines.push(name + ' made <span class="recap-highlight neutral">' + rd.trades.length + ' trade' + (rd.trades.length!==1?'s':'') + '</span> this week. ');
+  }
+
+  // Buys
+  if (rd.weekBuys.length > 0) {
+    var buySymbols = [];
+    rd.weekBuys.forEach(function(t) { if (buySymbols.indexOf(t.symbol) < 0) buySymbols.push(t.symbol); });
+    var totalBuySpend = rd.weekBuys.reduce(function(s,t){return s+t.total;}, 0);
+    lines.push('Bought into <b>' + buySymbols.join(', ') + '</b>, investing ' + fmt(totalBuySpend) + ' total. ');
+
+    // Check if any buys were particularly large
+    rd.weekBuys.forEach(function(t) {
+      if (t.total > rd.netWorth * 0.2) {
+        lines.push('The <b>' + t.symbol + '</b> position (' + t.shares + ' shares at ' + fmt(t.price) + ') was a big bet — ');
+        // Check current performance of this holding
+        var holding = rd.holdings.find(function(h){return h.symbol === t.symbol;});
+        if (holding) {
+          if (holding.pnlPct > 2) lines.push('<span class="recap-highlight gain">paying off nicely at +' + holding.pnlPct.toFixed(1) + '%</span>. ');
+          else if (holding.pnlPct < -2) lines.push('<span class="recap-highlight loss">currently underwater at ' + holding.pnlPct.toFixed(1) + '%</span>. ');
+          else lines.push('holding steady for now. ');
+        }
+      }
+    });
+  }
+
+  // Sells
+  if (rd.weekSells.length > 0) {
+    var profitSells = rd.weekSells.filter(function(t){return t.pnl && t.pnl > 0;});
+    var lossSells = rd.weekSells.filter(function(t){return t.pnl && t.pnl < 0;});
+
+    if (profitSells.length > 0) {
+      var totalProfit = profitSells.reduce(function(s,t){return s+(t.pnl||0);},0);
+      lines.push('Locked in <span class="recap-highlight gain">+' + fmt(totalProfit) + ' in realized profits</span> from ' + profitSells.length + ' winning sale' + (profitSells.length!==1?'s':'') + '. ');
+      // Highlight best sale
+      profitSells.sort(function(a,b){return (b.pnl||0)-(a.pnl||0);});
+      var best = profitSells[0];
+      lines.push('Best exit: sold ' + best.shares + ' shares of <b>' + best.symbol + '</b> for a ' + fmt(best.pnl) + ' gain — nice timing! ');
+    }
+
+    if (lossSells.length > 0) {
+      var totalLoss = lossSells.reduce(function(s,t){return s+(t.pnl||0);},0);
+      lines.push('Took <span class="recap-highlight loss">' + fmt(totalLoss) + ' in losses</span> on ' + lossSells.length + ' sale' + (lossSells.length!==1?'s':'') + '. ');
+      lossSells.sort(function(a,b){return (a.pnl||0)-(b.pnl||0);});
+      var worst = lossSells[0];
+      lines.push('Toughest exit: ' + worst.shares + ' shares of <b>' + worst.symbol + '</b> at a ' + fmt(worst.pnl) + ' loss. Sometimes cutting losses early is the smart play. ');
+    }
+  }
+
+  // Top and bottom movers in current portfolio
+  if (rd.topMover && rd.holdings.length > 1) {
+    if (rd.topMover.pnlPct > 0) {
+      lines.push('Portfolio star: <b>' + rd.topMover.symbol + '</b> is the top performer at <span class="recap-highlight gain">+' + rd.topMover.pnlPct.toFixed(1) + '%</span> (' + fmt(rd.topMover.pnl) + ' unrealized gain). ');
+    }
+    if (rd.bottomMover && rd.bottomMover.pnlPct < 0) {
+      lines.push('Drag on the portfolio: <b>' + rd.bottomMover.symbol + '</b> is down <span class="recap-highlight loss">' + rd.bottomMover.pnlPct.toFixed(1) + '%</span> (' + fmt(rd.bottomMover.pnl) + '). Worth watching — hold or cut? ');
+    }
+  }
+
+  // Cash position
+  var cashPct = (rd.cash / rd.netWorth) * 100;
+  if (cashPct > 50) {
+    lines.push('Sitting on <b>' + fmt(rd.cash) + ' in cash</b> (' + cashPct.toFixed(0) + '% of portfolio). Lots of dry powder for opportunities — but cash doesn\x27t grow! ');
+  } else if (cashPct < 10) {
+    lines.push('Nearly fully invested with only ' + fmt(rd.cash) + ' in cash. Bold strategy — but no room for new opportunities if something comes up. ');
+  }
+
+  // Closing
+  if (rd.weeklyGain > 0) {
+    lines.push('Overall a <span class="recap-highlight gain">green week</span> — keep the momentum going!');
+  } else if (rd.weeklyGain < 0) {
+    lines.push('A <span class="recap-highlight loss">red week</span> — but remember, the best investors learn more from losses than wins.');
+  } else {
+    lines.push('Breaking even — the market giveth and the market taketh away. Next week is a new chapter!');
+  }
+
+  return lines.join('');
+}
+
+// Generate recap when the tab is clicked
+document.querySelector('[data-page="recap"]').addEventListener('click', function() {
+  setTimeout(generateWeeklyRecap, 100);
+});
 
 // ============================================================
 // AFTER HOURS HANDLERS
