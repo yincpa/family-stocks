@@ -703,7 +703,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
-  adminPassword:   'seattle123',
+  adminPassword:   'seattle1234’,
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
@@ -714,7 +714,6 @@ var EMBEDDED = {
     appId:             '',
   }
 };
-
 
 // ============================================================
 // CONSTANTS
@@ -2281,7 +2280,15 @@ function callAnthropicForRecap(recapData, week, cacheKey) {
     })
   })
   .then(function(r) {
-    if (!r.ok) throw new Error('API returned ' + r.status);
+    if (!r.ok) {
+      return r.json().then(function(err) {
+        var msg = (err.error && err.error.message) || JSON.stringify(err);
+        throw new Error('API ' + r.status + ': ' + msg);
+      }).catch(function(e) {
+        if (e.message.indexOf('API') === 0) throw e;
+        throw new Error('API returned ' + r.status);
+      });
+    }
     return r.json();
   })
   .then(function(data) {
