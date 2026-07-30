@@ -1,10 +1,18 @@
 
 // ============================================================
 // EMBEDDED CONFIG — fill in before uploading to GitHub
+<<<<<<< HEAD
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
   adminPassword:   'seattle123’,
+=======
+// ============================================================
+var EMBEDDED = {
+  finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
+  startingBalance: 100000,
+  adminPassword:   'seattle123',
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
@@ -213,6 +221,7 @@ function launchApp() {
 // BOOT
 // ============================================================
 window.addEventListener('load', function() {
+<<<<<<< HEAD
   // ACCESS CODE CHECK — runs before anything else
   checkAccessCode();
 });
@@ -303,6 +312,8 @@ function proceedToApp() {
 }
 
 function originalBoot() {
+=======
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
   // PATH 1: Embedded config filled in
   if (isEmbeddedConfigured()) {
     cfg = {finnhubKey:EMBEDDED.finnhubKey, startingBalance:EMBEDDED.startingBalance, adminPassword:EMBEDDED.adminPassword, firebaseConfig:EMBEDDED.firebaseConfig};
@@ -340,7 +351,11 @@ function originalBoot() {
   }
   // PATH 3: Show wizard
   renderWizard();
+<<<<<<< HEAD
 }
+=======
+});
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
 
 function showError(msg) {
   document.getElementById('wizardContent').innerHTML =
@@ -587,6 +602,7 @@ function renderMarketSnapshot() {
     }).join('');
   });
 }
+<<<<<<< HEAD
 // ============================================================
 // ANNOUNCEMENT
 // ============================================================
@@ -623,6 +639,9 @@ function renderAnnouncement() {
 }
 
 function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); renderPendingOrders(); renderAnnouncement(); }
+=======
+function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); renderPendingOrders(); }
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
 
 // ============================================================
 // STOCK LOOKUP
@@ -1274,6 +1293,7 @@ document.getElementById('adminLoginSubmitBtn').addEventListener('click', functio
   if (entered !== cfg.adminPassword) { showToast('Wrong admin password','error'); return; }
   document.getElementById('adminLoginOverlay').classList.add('hidden');
   renderAdminPinList();
+<<<<<<< HEAD
   // Show current announcement
   fbGet('announcement').then(function(data) {
     if (data && data.text) {
@@ -1292,6 +1312,8 @@ document.getElementById('adminLoginSubmitBtn').addEventListener('click', functio
       document.getElementById('adminAccessCodeStatus').textContent = 'No code set. Anyone with the URL can access the app.';
     }
   });
+=======
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
   // Show anthropic key status
   if (cfg.anthropicKey) {
     document.getElementById('adminAnthropicStatus').textContent = 'AI key is active. Recaps will use Claude.';
@@ -1329,6 +1351,7 @@ function renderAdminPinList() {
 }
 document.getElementById('adminPanelCloseBtn').addEventListener('click', function(){ document.getElementById('adminPanelOverlay').classList.add('hidden'); });
 
+<<<<<<< HEAD
 // Access code management
 document.getElementById('adminSaveAccessCodeBtn').addEventListener('click', function() {
   var code = document.getElementById('adminAccessCode').value.trim();
@@ -1368,6 +1391,8 @@ document.getElementById('adminClearAnnouncementBtn').addEventListener('click', f
   }).catch(function(e) { showToast('Failed to clear: ' + e.message, 'error'); });
 });
 
+=======
+>>>>>>> a1992a68fa29cbb8d1cf96db201f60aa0b64eec6
 // Anthropic key management - stored in Firebase, never in source code
 document.getElementById('adminSaveAnthropicBtn').addEventListener('click', function() {
   var key = document.getElementById('adminAnthropicKey').value.trim();
