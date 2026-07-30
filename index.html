@@ -342,9 +342,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .recap-empty{text-align:center;padding:60px 24px;color:var(--muted);}
 .recap-refresh-btn{margin-top:16px;}
 
+
+/* ANNOUNCEMENT */
+.announce-bar{background:rgba(79,142,247,0.1);border:1px solid rgba(79,142,247,0.25);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;}
+.announce-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+.announce-content{flex:1;}
+.announce-text{font-size:14px;line-height:1.6;color:var(--text);}
+.announce-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+.announce-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px;transition:color .15s;}
+.announce-dismiss:hover{color:var(--text);}
+
 </style>
 </head>
 <body>
+
+<!-- ACCESS CODE SCREEN -->
+<div class="overlay" id="accessOverlay" style="display:none;">
+  <div class="modal" style="max-width:360px;text-align:center;">
+    <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+    <div class="modal-title">Family Stock Challenge</div>
+    <div class="modal-sub" style="margin-bottom:20px;">Enter the family access code to continue.</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <input class="form-input" id="accessCodeInput" type="password" placeholder="Access code" style="text-align:center;font-size:16px;letter-spacing:0.1em;">
+    </div>
+    <div id="accessError" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:12px;"></div>
+    <button class="btn btn-primary btn-full" id="accessSubmitBtn">Enter</button>
+  </div>
+</div>
 
 <!-- SETUP WIZARD -->
 <div class="overlay" id="setupOverlay">
@@ -465,6 +489,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <div class="card-title">Member PINs</div>
     <div id="adminPinList"></div>
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">Announcement</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Post a message that all users see above their portfolio. Great for announcements, challenges, or reminders.</div>
+      <textarea class="form-input" id="adminAnnouncementText" rows="3" placeholder="e.g. New rule: everyone must buy at least one stock this week!" style="resize:vertical;margin-bottom:8px;"></textarea>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-primary btn-sm" id="adminPostAnnouncementBtn" style="flex:1;">Post Announcement</button>
+        <button class="btn btn-ghost btn-sm" id="adminClearAnnouncementBtn">Clear</button>
+      </div>
+      <div id="adminAnnouncementStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">Family Access Code</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Set a code that family members enter once to access the app. Strangers who find the URL won't be able to get in.</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="form-input" id="adminAccessCode" type="text" placeholder="e.g. stocks2026" style="flex:1;font-size:14px;">
+        <button class="btn btn-primary btn-sm" id="adminSaveAccessCodeBtn">Save</button>
+      </div>
+      <div id="adminAccessCodeStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
       <div class="card-title" style="margin-bottom:8px;">AI Weekly Recap</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Enter your Anthropic API key to enable AI-powered weekly recaps. Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);">console.anthropic.com</a></div>
       <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -534,6 +577,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 <div class="player-bar" id="playerBar"></div>
 <div class="main">
   <div class="left-panel">
+    <div id="announcementSection" style="display:none;"></div>
     <div class="card">
       <div class="card-title" id="playerNameLabel">Portfolio</div>
       <div class="summary-grid">
