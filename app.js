@@ -5,7 +5,7 @@
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
-  adminPassword:   'seattle123’,
+  adminPassword:   'seattle123',
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
@@ -16,7 +16,6 @@ var EMBEDDED = {
     appId:             '',
   }
 };
-
 
 // ============================================================
 // CONSTANTS
@@ -215,96 +214,6 @@ function launchApp() {
 // BOOT
 // ============================================================
 window.addEventListener('load', function() {
-  // ACCESS CODE CHECK — runs before anything else
-  checkAccessCode();
-});
-
-function checkAccessCode() {
-  // First, we need Firebase to verify the code
-  // If EMBEDDED config is available, init Firebase and check
-  if (isEmbeddedConfigured()) {
-    try { initFirebase(EMBEDDED.firebaseConfig); } catch(e) {}
-  } else {
-    var saved = loadConfig();
-    if (saved && saved.firebaseConfig) {
-      try { initFirebase(saved.firebaseConfig); } catch(e) {}
-    }
-  }
-
-  if (!db) {
-    // No Firebase — skip access code, proceed to normal boot
-    proceedToApp();
-    return;
-  }
-
-  // Check if access code is set in Firebase
-  fbGet('config/accessCode').then(function(code) {
-    if (!code) {
-      // No access code set — proceed without it
-      proceedToApp();
-      return;
-    }
-
-    // Access code exists — check if user has the right token
-    var storedCode = null;
-    try { storedCode = localStorage.getItem('fsc_access'); } catch(e) {}
-
-    if (storedCode === code) {
-      // Correct token — proceed
-      proceedToApp();
-    } else {
-      // Show access code screen
-      document.getElementById('setupOverlay').style.display = 'none';
-      document.getElementById('accessOverlay').style.display = 'flex';
-    }
-  }).catch(function() {
-    // Firebase error — proceed without access check
-    proceedToApp();
-  });
-}
-
-// Access code submit handler
-document.getElementById('accessSubmitBtn').addEventListener('click', submitAccessCode);
-document.getElementById('accessCodeInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') submitAccessCode();
-});
-
-function submitAccessCode() {
-  var input = document.getElementById('accessCodeInput');
-  var code = input.value.trim();
-  if (!code) { document.getElementById('accessError').textContent = 'Please enter the access code.'; return; }
-
-  var btn = document.getElementById('accessSubmitBtn');
-  setLoading(btn, true, 'Checking...');
-
-  fbGet('config/accessCode').then(function(correctCode) {
-    if (code === correctCode) {
-      // Correct! Save to localStorage and proceed
-      try { localStorage.setItem('fsc_access', code); } catch(e) {}
-      document.getElementById('accessOverlay').style.display = 'none';
-      // Re-initialize since we may have already init'd Firebase
-      db = null;
-      proceedToApp();
-    } else {
-      document.getElementById('accessError').textContent = 'Wrong code. Ask your family admin for the access code.';
-      input.value = '';
-      input.focus();
-    }
-  }).catch(function(e) {
-    document.getElementById('accessError').textContent = 'Connection error. Try again.';
-  }).then(function() {
-    setLoading(btn, false, 'Enter');
-  });
-}
-
-function proceedToApp() {
-  // Reset Firebase if needed (checkAccessCode may have initialized it)
-  db = null;
-  // Run the original boot sequence
-  originalBoot();
-}
-
-function originalBoot() {
   // PATH 1: Embedded config filled in
   if (isEmbeddedConfigured()) {
     cfg = {finnhubKey:EMBEDDED.finnhubKey, startingBalance:EMBEDDED.startingBalance, adminPassword:EMBEDDED.adminPassword, firebaseConfig:EMBEDDED.firebaseConfig};
@@ -342,7 +251,7 @@ function originalBoot() {
   }
   // PATH 3: Show wizard
   renderWizard();
-}
+});
 
 function showError(msg) {
   document.getElementById('wizardContent').innerHTML =
@@ -589,42 +498,7 @@ function renderMarketSnapshot() {
     }).join('');
   });
 }
-// ============================================================
-// ANNOUNCEMENT
-// ============================================================
-function renderAnnouncement() {
-  var section = document.getElementById('announcementSection');
-  if (!section) return;
-  fbGet('announcement').then(function(data) {
-    if (!data || !data.text) {
-      section.style.display = 'none';
-      return;
-    }
-    // Check if user dismissed this announcement
-    var dismissedId = null;
-    try { dismissedId = localStorage.getItem('fsc_dismissed_announce'); } catch(e) {}
-    if (dismissedId === data.id) {
-      section.style.display = 'none';
-      return;
-    }
-    section.style.display = 'block';
-    var timeStr = data.postedAt ? new Date(data.postedAt).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
-    section.innerHTML = '<div class="announce-bar">' +
-      '<div class="announce-icon">📢</div>' +
-      '<div class="announce-content">' +
-        '<div class="announce-text">' + escapeHtml(data.text) + '</div>' +
-        '<div class="announce-meta">Posted by Admin' + (timeStr ? ' · ' + timeStr : '') + '</div>' +
-      '</div>' +
-      '<button class="announce-dismiss" id="announceDismissBtn" title="Dismiss">×</button>' +
-    '</div>';
-    document.getElementById('announceDismissBtn').addEventListener('click', function() {
-      try { localStorage.setItem('fsc_dismissed_announce', data.id); } catch(e) {}
-      section.style.display = 'none';
-    });
-  });
-}
-
-function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); renderPendingOrders(); renderAnnouncement(); }
+function renderAll() { renderPlayerTabs(); renderSummary(); renderHoldings(); renderHistory(); renderLeaderboard(); renderPendingOrders(); }
 
 // ============================================================
 // STOCK LOOKUP
@@ -1276,24 +1150,6 @@ document.getElementById('adminLoginSubmitBtn').addEventListener('click', functio
   if (entered !== cfg.adminPassword) { showToast('Wrong admin password','error'); return; }
   document.getElementById('adminLoginOverlay').classList.add('hidden');
   renderAdminPinList();
-  // Show current announcement
-  fbGet('announcement').then(function(data) {
-    if (data && data.text) {
-      document.getElementById('adminAnnouncementText').value = data.text;
-      document.getElementById('adminAnnouncementStatus').textContent = 'Current announcement is live (posted ' + new Date(data.postedAt).toLocaleDateString() + ')';
-    } else {
-      document.getElementById('adminAnnouncementStatus').textContent = 'No active announcement.';
-    }
-  });
-  // Show access code status
-  fbGet('config/accessCode').then(function(code) {
-    if (code) {
-      document.getElementById('adminAccessCodeStatus').textContent = 'Active code: ' + code;
-      document.getElementById('adminAccessCode').placeholder = 'Enter new code to change';
-    } else {
-      document.getElementById('adminAccessCodeStatus').textContent = 'No code set. Anyone with the URL can access the app.';
-    }
-  });
   // Show anthropic key status
   if (cfg.anthropicKey) {
     document.getElementById('adminAnthropicStatus').textContent = 'AI key is active. Recaps will use Claude.';
@@ -1330,45 +1186,6 @@ function renderAdminPinList() {
   });
 }
 document.getElementById('adminPanelCloseBtn').addEventListener('click', function(){ document.getElementById('adminPanelOverlay').classList.add('hidden'); });
-
-// Access code management
-document.getElementById('adminSaveAccessCodeBtn').addEventListener('click', function() {
-  var code = document.getElementById('adminAccessCode').value.trim();
-  if (!code) { showToast('Enter an access code', 'error'); return; }
-  if (code.length < 4) { showToast('Code should be at least 4 characters', 'error'); return; }
-  fbSet('config/accessCode', code).then(function() {
-    try { localStorage.setItem('fsc_access', code); } catch(e) {}
-    showToast('Access code set! Share it with your family.');
-    document.getElementById('adminAccessCodeStatus').textContent = 'Code is active. New visitors will need to enter it.';
-    document.getElementById('adminAccessCode').value = '';
-  }).catch(function(e) { showToast('Failed to save: ' + e.message, 'error'); });
-});
-
-// Announcement management
-document.getElementById('adminPostAnnouncementBtn').addEventListener('click', function() {
-  var text = document.getElementById('adminAnnouncementText').value.trim();
-  if (!text) { showToast('Write a message first', 'error'); return; }
-  var announcement = {
-    id: 'announce_' + Date.now(),
-    text: text,
-    postedAt: Date.now()
-  };
-  fbSet('announcement', announcement).then(function() {
-    showToast('Announcement posted!');
-    document.getElementById('adminAnnouncementText').value = '';
-    document.getElementById('adminAnnouncementStatus').textContent = 'Announcement is live.';
-  }).catch(function(e) { showToast('Failed to post: ' + e.message, 'error'); });
-});
-
-document.getElementById('adminClearAnnouncementBtn').addEventListener('click', function() {
-  if (!confirm('Remove the current announcement?')) return;
-  fbRemove('announcement').then(function() {
-    showToast('Announcement cleared.', 'info');
-    document.getElementById('adminAnnouncementStatus').textContent = 'No active announcement.';
-    var section = document.getElementById('announcementSection');
-    if (section) section.style.display = 'none';
-  }).catch(function(e) { showToast('Failed to clear: ' + e.message, 'error'); });
-});
 
 // Anthropic key management - stored in Firebase, never in source code
 document.getElementById('adminSaveAnthropicBtn').addEventListener('click', function() {
