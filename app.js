@@ -69,13 +69,8 @@ var isAdminSession = false;
 // FIREBASE (using compat SDK - window.firebase)
 // ============================================================
 function initFirebase(fc) {
-  if (firebase.apps && firebase.apps.length > 0) {
-    // Already initialized — just get the database reference
-    db = firebase.database();
-  } else {
-    firebase.initializeApp(fc);
-    db = firebase.database();
-  }
+  try { firebase.initializeApp(fc); } catch(e) { /* already initialized */ }
+  db = firebase.database();
 }
 function fbRef(path) { return db.ref(path); }
 function fbSet(path, val) { return fbRef(path).set(val); }
@@ -303,9 +298,6 @@ function submitAccessCode() {
 }
 
 function proceedToApp() {
-  // Reset Firebase if needed (checkAccessCode may have initialized it)
-  db = null;
-  // Run the original boot sequence
   originalBoot();
 }
 
@@ -313,7 +305,7 @@ function originalBoot() {
   // PATH 1: Embedded config filled in
   if (isEmbeddedConfigured()) {
     cfg = {finnhubKey:EMBEDDED.finnhubKey, startingBalance:EMBEDDED.startingBalance, adminPassword:EMBEDDED.adminPassword, firebaseConfig:EMBEDDED.firebaseConfig};
-    try { initFirebase(cfg.firebaseConfig); } catch(e) { showError('Firebase init failed: ' + e.message); return; }
+    if (!db) { try { initFirebase(cfg.firebaseConfig); } catch(e) { showError('Firebase init failed: ' + e.message); return; } }
     fbGet('config').then(function(fbCfg) {
       if (!fbCfg) {
         fbSet('config', {finnhubKey:cfg.finnhubKey, startingBalance:cfg.startingBalance, adminPassword:cfg.adminPassword, firebaseConfig:cfg.firebaseConfig});
