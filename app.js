@@ -69,8 +69,13 @@ var isAdminSession = false;
 // FIREBASE (using compat SDK - window.firebase)
 // ============================================================
 function initFirebase(fc) {
-  firebase.initializeApp(fc);
-  db = firebase.database();
+  if (firebase.apps && firebase.apps.length > 0) {
+    // Already initialized — just get the database reference
+    db = firebase.database();
+  } else {
+    firebase.initializeApp(fc);
+    db = firebase.database();
+  }
 }
 function fbRef(path) { return db.ref(path); }
 function fbSet(path, val) { return fbRef(path).set(val); }
