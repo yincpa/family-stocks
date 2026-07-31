@@ -1,0 +1,745 @@
+<!--
+=======================================================================
+  ADMIN SETUP CHECKLIST — DO THIS EVERY TIME YOU GET AN UPDATED FILE
+=======================================================================
+
+  1. Open this file in VS Code
+
+  2. Press Cmd+F (Mac) and search for:  const EMBEDDED
+
+  3. Fill in YOUR values in the EMBEDDED block:
+
+       finnhubKey:      'your-finnhub-api-key'
+       startingBalance: 100000
+       adminPassword:   'your-secret-password'
+
+       firebaseConfig:
+         apiKey:      'AIzaSy...'
+         authDomain:  'family-stocks-2f1cb.firebaseapp.com'
+         databaseURL: 'https://family-stocks-2f1cb-default-rtdb.firebaseio.com'
+         projectId:   'family-stocks-2f1cb'
+
+  4. Save the file
+
+  5. Rename to index.html
+
+  6. Upload to GitHub (replace the existing index.html)
+
+  ✅ EMBEDDED filled in = everyone opens straight to the trading screen
+  ❌ EMBEDDED left blank = setup wizard appears
+
+=======================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Stock Challenge</title>
+
+<!-- Firebase compat SDK (regular script tags - works in all browsers) -->
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+
+<style>
+:root{--bg:#0d0f14;--surface:#161a23;--surface2:#1d2230;--border:#2a3045;--border2:#3a4560;--text:#e8eaf0;--muted:#7a8299;--accent:#4f8ef7;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--gold:#fbbf24;--radius:12px;--radius-sm:8px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:300;padding:24px;}
+.overlay.hidden{display:none;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:32px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:20px;font-weight:700;margin-bottom:6px;}
+.modal-sub{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.6;}
+.form-group{margin-bottom:16px;}
+.form-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s;}
+.form-input:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--muted);}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.hint a{color:var(--accent);}
+.btn{padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#3a7ce8;}.btn-primary:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-success{background:var(--green);color:#000;}.btn-success:hover{background:#16a34a;}
+.btn-danger{background:var(--red);color:#fff;}.btn-danger:hover{background:#dc2626;}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}.btn-ghost:hover{border-color:var(--border2);color:var(--text);}
+.btn-sm{padding:6px 12px;font-size:13px;}.btn-full{width:100%;justify-content:center;}
+.step-indicator{display:flex;gap:8px;margin-bottom:28px;}
+.step-dot{height:4px;border-radius:2px;flex:1;background:var(--border);transition:background .3s;}
+.step-dot.done{background:var(--accent);}
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;}
+.swatch.selected{border-color:#fff;}
+.member-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.member-item:last-child{border-bottom:none;}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;}
+.avatar-sm{width:40px;height:40px;font-size:16px;}
+.member-info{flex:1;}
+.member-name{font-weight:600;font-size:15px;}
+.member-sub{font-size:12px;color:var(--muted);margin-top:1px;}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;}
+.logo{font-size:18px;font-weight:700;letter-spacing:-.5px;}
+.logo span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:8px;}
+.market-pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+.status-dot.closed{background:var(--amber);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.pulse{animation:pulse 2s infinite;}
+.player-bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:4px;overflow-x:auto;}
+.player-bar::-webkit-scrollbar{height:0;}
+.player-tab{padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:8px;}
+.player-tab:hover{color:var(--text);}
+.player-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.add-member-tab{padding:12px 16px;cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;transition:color .15s;}
+.add-member-tab:hover{color:var(--accent);}
+.main{display:grid;grid-template-columns:1fr 340px;min-height:calc(100vh - 108px);}
+.left-panel{padding:24px;border-right:1px solid var(--border);}
+.right-panel{padding:24px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;}
+.card-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-box{background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;}
+.stat-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em;}
+.stat-value{font-size:21px;font-weight:700;margin-top:4px;font-family:ui-monospace,'SF Mono','Monaco',monospace;}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.green{color:var(--green);}.red{color:var(--red);}
+.search-row{display:flex;gap:8px;margin-bottom:12px;}
+.search-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s;}
+.search-input:focus{border-color:var(--accent);}
+.search-input::placeholder{color:var(--muted);}
+.quote-result{background:var(--surface2);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;display:none;}
+.quote-result.visible{display:block;}
+.quote-ticker{font-size:20px;font-weight:700;}
+.quote-name{font-size:13px;color:var(--muted);margin-top:2px;}
+.quote-price{font-size:28px;font-weight:700;font-family:ui-monospace,'SF Mono','Monaco',monospace;margin-top:8px;}
+.quote-change{font-size:13px;margin-top:2px;}
+.quote-change.up{color:var(--green);}.quote-change.down{color:var(--red);}
+.trade-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);}
+.qty-input{width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-family:ui-monospace,'SF Mono','Monaco',monospace;font-size:14px;outline:none;}
+.qty-input:focus{border-color:var(--accent);}
+.trade-cost{font-size:12px;color:var(--muted);margin-top:8px;}
+.trade-cost span{color:var(--text);font-weight:600;}
+.holdings-table{border-collapse:collapse;font-size:13px;table-layout:fixed;width:1140px;}
+.holdings-table th{text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;overflow:hidden;}
+.holdings-table th:first-child{text-align:left;}
+.holdings-table td{padding:11px 8px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;font-size:13px;overflow:hidden;text-overflow:ellipsis;}
+.holdings-table tr:last-child td{border-bottom:none;}
+.holdings-table .col-stock{width:80px;}
+.holdings-table .col-shares{width:70px;}
+.holdings-table .col-avg{width:100px;}
+.holdings-table .col-price{width:100px;}
+.holdings-table .col-excost{width:120px;}
+.holdings-table .col-extot{width:120px;}
+.holdings-table .col-pnl{width:110px;}
+.holdings-table .col-daychg{width:90px;}
+.holdings-table .col-sell{width:70px;}
+.holdings-table .col-notes{width:280px;}
+#holdingsContainer{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;width:100%;}
+#holdingsContainer::-webkit-scrollbar{height:6px;}
+#holdingsContainer::-webkit-scrollbar-track{background:var(--surface2);border-radius:3px;}
+#holdingsContainer::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.notes-cell{white-space:normal !important;vertical-align:top;padding-top:10px;}
+.note-input{width:100%;background:transparent;border:1px solid transparent;border-radius:6px;padding:6px 8px;color:var(--text);font-family:inherit;font-size:12px;outline:none;resize:none;line-height:1.4;transition:border-color .15s,background .15s;overflow:hidden;min-height:32px;white-space:normal;word-break:break-word;}
+.note-input:hover{border-color:var(--border);}
+.note-input:focus{border-color:var(--accent);background:var(--surface2);}
+.note-input::placeholder{color:var(--border2);}
+.note-saved{font-size:10px;color:var(--green);opacity:0;transition:opacity .3s;margin-top:2px;}
+.note-saved.show{opacity:1;}
+.ticker-badge{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-family:ui-monospace,'SF Mono','Monaco',monospace;font-size:12px;font-weight:600;color:var(--accent);}
+.sell-mini{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;font-weight:600;transition:all .15s;}
+.sell-mini:hover{background:var(--red);color:#fff;}
+.hist-row{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.hist-row:last-child{border-bottom:none;}
+.hist-badge{display:inline-block;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;margin-right:6px;}
+.hist-badge.BUY{background:rgba(34,197,94,.15);color:var(--green);}
+.hist-badge.SELL{background:rgba(239,68,68,.15);color:var(--red);}
+.hist-meta{color:var(--muted);font-size:11px;margin-top:3px;}
+.lb-row{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);}
+.lb-row:last-child{border-bottom:none;}
+.lb-rank{font-size:18px;width:28px;text-align:center;}
+.lb-info{flex:1;min-width:0;}
+.lb-name{font-weight:600;font-size:14px;}
+.lb-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.lb-value{text-align:right;flex-shrink:0;}
+.lb-total{font-family:ui-monospace,'SF Mono','Monaco',monospace;font-weight:700;font-size:15px;}
+.lb-gain{font-size:11px;margin-top:2px;}
+.tab-bar{display:flex;gap:4px;margin-bottom:16px;}
+.tab-btn{padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:all .15s;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:14px;}
+.empty-icon{font-size:28px;margin-bottom:8px;}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 20px;font-size:14px;font-weight:500;z-index:999;opacity:0;transform:translateY(12px);transition:all .25s;pointer-events:none;max-width:320px;}
+#toast.show{opacity:1;transform:translateY(0);}
+#toast.success{border-color:var(--green);color:var(--green);}
+#toast.error{border-color:var(--red);color:var(--red);}
+#toast.info{border-color:var(--accent);color:var(--accent);}
+.progress-bar{height:6px;background:var(--border);border-radius:3px;margin-top:12px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .4s;}
+.snap-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.snap-row:last-child{border-bottom:none;}
+.firebase-step{background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;font-size:13px;line-height:1.6;border-left:3px solid var(--accent);}
+.firebase-step code{font-family:ui-monospace,'SF Mono','Monaco',monospace;font-size:12px;color:#6ee7b7;background:rgba(110,231,183,.1);padding:1px 5px;border-radius:3px;}
+.manage-btn{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s;}
+.manage-btn:hover{border-color:var(--red);color:var(--red);}
+.spin{animation:spin 1s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.chat-box{height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;scroll-behavior:smooth;}
+.chat-box::-webkit-scrollbar{width:4px;}
+.chat-box::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.chat-msg{display:flex;flex-direction:column;max-width:80%;}
+.chat-msg.me{align-self:flex-end;align-items:flex-end;}
+.chat-msg.other{align-self:flex-start;align-items:flex-start;}
+.chat-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.5;word-break:break-word;}
+.chat-msg.me .chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px;}
+.chat-msg.other .chat-bubble{background:var(--surface2);color:var(--text);border-bottom-left-radius:4px;}
+.chat-meta{font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px;}
+.chat-name{font-weight:600;}
+.chat-input-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+.chat-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:10px 16px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s;}
+.chat-input:focus{border-color:var(--accent);}
+.chat-input::placeholder{color:var(--muted);}
+.chat-send-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;transition:background .15s;}
+.chat-send-btn:hover{background:#3a7ce8;}
+.chat-send-btn:disabled{background:var(--border);cursor:not-allowed;}
+.chat-day-divider{text-align:center;font-size:11px;color:var(--muted);margin:4px 0;position:relative;}
+.chat-day-divider::before,.chat-day-divider::after{content:'';position:absolute;top:50%;width:35%;height:1px;background:var(--border);}
+.chat-day-divider::before{left:0;}.chat-day-divider::after{right:0;}
+.chat-empty{text-align:center;padding:40px 16px;color:var(--muted);font-size:14px;}
+.news-item{padding:10px 0;border-bottom:1px solid var(--border);}
+.news-item:last-child{border-bottom:none;}
+.news-headline{font-size:13px;font-weight:500;line-height:1.5;color:var(--text);text-decoration:none;display:block;margin-bottom:4px;}
+.news-headline:hover{color:var(--accent);}
+.news-meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.news-source{font-weight:600;}
+.stock-news{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.stock-news-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+@media(max-width:768px){.main{grid-template-columns:1fr;}.right-panel{border-top:1px solid var(--border);}}
+
+/* TOP NAV */
+.top-nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:0;}
+.top-nav-btn{padding:12px 24px;cursor:pointer;border:none;background:transparent;border-bottom:3px solid transparent;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted);transition:all .15s;}
+.top-nav-btn:hover{color:var(--text);}
+.top-nav-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.page{display:none;}
+.page.active{display:block;}
+
+/* SCREENER */
+.screener-header{display:flex;align-items:center;gap:12px;padding:20px 24px;flex-wrap:wrap;}
+.screener-title{font-size:20px;font-weight:700;margin-right:auto;}
+.list-select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;cursor:pointer;min-width:200px;}
+.list-select:focus{border-color:var(--accent);}
+.watchlist-add-row{display:flex;gap:8px;align-items:center;}
+.watchlist-add-input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;color:var(--text);font-family:inherit;font-size:13px;outline:none;width:120px;}
+.watchlist-add-input:focus{border-color:var(--accent);}
+.screener-status{font-size:12px;color:var(--muted);padding:0 24px 8px;display:flex;align-items:center;gap:8px;}
+.screener-progress{flex:1;max-width:300px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.screener-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
+.screener-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 180px);padding:0 24px 24px;-webkit-overflow-scrolling:touch;}
+.screener-wrap::-webkit-scrollbar{height:6px;}
+.screener-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.screener-table{border-collapse:collapse;font-size:13px;width:100%;min-width:1400px;}
+.screener-table th{position:sticky;top:0;background:var(--bg);z-index:10;text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s;}
+.screener-table th:hover{color:var(--accent);}
+.screener-table th.sorted-asc::after{content:' ▲';color:var(--accent);}
+.screener-table th.sorted-desc::after{content:' ▼';color:var(--accent);}
+.screener-table th:first-child{text-align:left;}
+.screener-table td{padding:10px 10px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13px;font-family:ui-monospace,monospace;}
+.screener-table td:first-child{font-family:inherit;}
+.screener-table tbody tr:hover{background:var(--surface2);}
+.score-bar{display:inline-flex;align-items:center;gap:6px;min-width:100px;}
+.score-fill{height:8px;border-radius:4px;transition:width .4s;}
+.score-num{font-size:13px;font-weight:700;min-width:28px;text-align:right;}
+.score-high{color:var(--green);}
+.score-mid{color:var(--amber);}
+.score-low{color:var(--red);}
+.trade-link{color:var(--accent);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;text-decoration:underline;background:none;border:none;}
+.trade-link:hover{color:#3a7ce8;}
+.remove-wl-btn{color:var(--red);cursor:pointer;font-size:11px;background:none;border:none;font-family:inherit;padding:2px 6px;border-radius:4px;}
+.remove-wl-btn:hover{background:rgba(239,68,68,.15);}
+
+
+/* AVATAR IMAGES */
+.avatar-img{width:100%;height:100%;border-radius:50%;object-fit:cover;}
+.avatar-edit-preview{width:80px;height:80px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;border:3px solid var(--border2);}
+.avatar-edit-preview img{width:100%;height:100%;object-fit:cover;}
+.avatar-options{display:flex;gap:8px;margin-bottom:16px;}
+.avatar-opt-btn{flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;text-align:center;transition:all .15s;}
+.avatar-opt-btn:hover{border-color:var(--accent);color:var(--accent);}
+.avatar-opt-btn.active{border-color:var(--accent);background:rgba(79,142,247,.1);color:var(--accent);}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:200px;overflow-y:auto;padding:4px;}
+.emoji-grid::-webkit-scrollbar{width:4px;}
+.emoji-grid::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.emoji-pick{width:100%;aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:var(--surface2);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.emoji-pick:hover{border-color:var(--accent);background:var(--surface);}
+.emoji-pick.selected{border-color:var(--accent);background:rgba(79,142,247,.15);}
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:all .15s;color:var(--muted);font-size:13px;}
+.upload-zone:hover{border-color:var(--accent);color:var(--accent);}
+
+
+/* SYMBOL SEARCH DROPDOWN */
+.search-results{position:relative;}
+.search-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);max-height:200px;overflow-y:auto;z-index:50;display:none;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.search-dropdown.visible{display:block;}
+.search-result-item{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid var(--border);transition:background .1s;}
+.search-result-item:last-child{border-bottom:none;}
+.search-result-item:hover{background:var(--surface2);}
+.search-result-sym{font-weight:700;color:var(--accent);font-family:ui-monospace,monospace;}
+.search-result-name{color:var(--muted);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+
+/* CANDLESTICK CHART */
+.chart-container{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.chart-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.chart-range-btns{display:flex;gap:4px;}
+.chart-range-btn{padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:11px;font-weight:600;transition:all .15s;}
+.chart-range-btn:hover{color:var(--text);}
+.chart-range-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.chart-canvas-wrap{background:var(--surface);border-radius:var(--radius-sm);padding:8px 4px 4px;position:relative;}
+.chart-loading{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+
+
+/* PENDING ORDERS */
+.pending-section{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;}
+.pending-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--amber);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.pending-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(245,158,11,0.15);font-size:13px;}
+.pending-item:last-child{border-bottom:none;}
+.pending-cancel{font-size:11px;color:var(--red);cursor:pointer;background:none;border:1px solid var(--red);border-radius:4px;padding:2px 8px;font-family:inherit;font-weight:600;}
+.pending-cancel:hover{background:var(--red);color:#fff;}
+
+
+/* WEEKLY RECAP */
+.recap-page{max-width:900px;margin:0 auto;padding:24px;}
+.recap-header{text-align:center;margin-bottom:32px;}
+.recap-title{font-size:24px;font-weight:700;margin-bottom:4px;}
+.recap-dates{font-size:14px;color:var(--muted);}
+.recap-ranking{margin-bottom:32px;}
+.recap-rank-row{display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;}
+.recap-rank-num{font-size:24px;font-weight:700;width:36px;text-align:center;flex-shrink:0;}
+.recap-rank-info{flex:1;}
+.recap-rank-name{font-size:16px;font-weight:600;}
+.recap-rank-detail{font-size:13px;color:var(--muted);margin-top:2px;}
+.recap-rank-change{text-align:right;flex-shrink:0;}
+.recap-rank-amount{font-size:20px;font-weight:700;font-family:ui-monospace,monospace;}
+.recap-rank-pct{font-size:12px;margin-top:2px;}
+.recap-blog{margin-bottom:24px;}
+.recap-player-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;}
+.recap-player-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.recap-player-name{font-size:18px;font-weight:700;}
+.recap-player-subtitle{font-size:12px;color:var(--muted);margin-top:2px;}
+.recap-text{font-size:14px;line-height:1.8;color:var(--text);}
+.recap-text b{color:var(--accent);}
+.recap-highlight{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;margin:0 2px;}
+.recap-highlight.gain{background:rgba(34,197,94,0.15);color:var(--green);}
+.recap-highlight.loss{background:rgba(239,68,68,0.15);color:var(--red);}
+.recap-highlight.neutral{background:rgba(79,142,247,0.15);color:var(--accent);}
+.recap-section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;}
+.recap-empty{text-align:center;padding:60px 24px;color:var(--muted);}
+.recap-refresh-btn{margin-top:16px;}
+
+
+/* ANNOUNCEMENT */
+.announce-bar{background:rgba(79,142,247,0.1);border:1px solid rgba(79,142,247,0.25);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;}
+.announce-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+.announce-content{flex:1;}
+.announce-text{font-size:14px;line-height:1.6;color:var(--text);}
+.announce-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+.announce-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px;transition:color .15s;}
+.announce-dismiss:hover{color:var(--text);}
+
+</style>
+</head>
+<body>
+
+<!-- ACCESS CODE SCREEN -->
+<div class="overlay" id="accessOverlay" style="display:none;">
+  <div class="modal" style="max-width:360px;text-align:center;">
+    <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+    <div class="modal-title">Family Stock Challenge</div>
+    <div class="modal-sub" style="margin-bottom:20px;">Enter the family access code to continue.</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <input class="form-input" id="accessCodeInput" type="password" placeholder="Access code" style="text-align:center;font-size:16px;letter-spacing:0.1em;">
+    </div>
+    <div id="accessError" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:12px;"></div>
+    <button class="btn btn-primary btn-full" id="accessSubmitBtn">Enter</button>
+  </div>
+</div>
+
+<!-- SETUP WIZARD -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <div id="wizardContent">
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">📈</div>
+        <div style="font-size:18px;font-weight:700;">Family Stock Challenge</div>
+        <div style="margin-top:8px;font-size:14px;color:var(--muted);">Connecting...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MEMBER -->
+<div class="overlay hidden" id="addMemberOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">Add Member</div>
+    <div class="modal-sub">Add a new player. They'll create their own PIN on their first trade.</div>
+    <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="newMemberName" placeholder="e.g. Grandpa Joe"></div>
+    <div class="form-group"><label class="form-label">Avatar Color</label><div class="swatch-row" id="newMemberSwatches"></div></div>
+    <div class="form-group"><label class="form-label">Emoji (optional)</label><input class="form-input" id="newMemberEmoji" placeholder="e.g. lion" maxlength="2" style="width:80px;"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" id="addMemberCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-primary" id="addMemberSaveBtn" style="flex:1;">Add Player</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE MEMBERS -->
+<div class="overlay hidden" id="manageMembersOverlay">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title">Manage Members</div>
+    <div class="modal-sub">Change PINs or remove non-core members.</div>
+    <div id="manageMembersList"></div>
+    <div style="margin-top:20px;"><button class="btn btn-ghost btn-full" id="manageMembersCloseBtn">Done</button></div>
+  </div>
+</div>
+
+<!-- AVATAR EDITOR -->
+<div class="overlay hidden" id="avatarEditorOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">Edit Avatar</div>
+    <div class="modal-sub" id="avatarEditorSub">Choose a photo, image, or emoji.</div>
+    <div class="avatar-edit-preview" id="avatarPreview"></div>
+    <div class="avatar-options">
+      <button class="avatar-opt-btn active" data-mode="emoji" id="avatarModeEmoji">Emoji</button>
+      <button class="avatar-opt-btn" data-mode="upload" id="avatarModeUpload">Upload Photo/Image</button>
+    </div>
+    <div id="avatarEmojiPanel">
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+    <div id="avatarUploadPanel" style="display:none;">
+      <div class="upload-zone" id="uploadZone">
+        Click to choose a photo or image<br><span style="font-size:11px;color:var(--muted);">JPG, PNG, GIF, SVG &mdash; any size, auto-resized</span>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-ghost" id="avatarCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-primary" id="avatarSaveBtn" style="flex:1;">Save Avatar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN MODAL -->
+<div class="overlay hidden" id="pinOverlay">
+  <div class="modal" style="max-width:320px;text-align:center;">
+    <div style="font-size:36px;margin-bottom:8px;" id="pinAvatar"></div>
+    <div class="modal-title" id="pinTitle">Enter PIN</div>
+    <div class="modal-sub" id="pinSub" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;">
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+      <div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;" class="pin-dot"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:220px;margin:0 auto 12px;">
+      <button class="btn pin-key" data-key="1" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">1</button>
+      <button class="btn pin-key" data-key="2" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">2</button>
+      <button class="btn pin-key" data-key="3" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">3</button>
+      <button class="btn pin-key" data-key="4" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">4</button>
+      <button class="btn pin-key" data-key="5" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">5</button>
+      <button class="btn pin-key" data-key="6" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">6</button>
+      <button class="btn pin-key" data-key="7" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">7</button>
+      <button class="btn pin-key" data-key="8" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">8</button>
+      <button class="btn pin-key" data-key="9" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">9</button>
+      <div></div>
+      <button class="btn pin-key" data-key="0" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">0</button>
+      <button class="btn pin-key" data-key="back" style="justify-content:center;font-size:18px;font-weight:600;padding:14px;background:var(--surface2);border:1px solid var(--border);">&#x232B;</button>
+    </div>
+    <div id="pinError" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:12px;"></div>
+    <button class="btn btn-ghost btn-full" id="pinCancelBtn">Cancel</button>
+  </div>
+</div>
+
+<!-- ADMIN LOGIN -->
+<div class="overlay hidden" id="adminLoginOverlay">
+  <div class="modal" style="max-width:340px;">
+    <div class="modal-title">Admin Access</div>
+    <div class="modal-sub">Enter the admin password to manage settings and PINs.</div>
+    <div class="form-group"><input class="form-input" id="adminPwInput" type="password" placeholder="Admin password"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="adminLoginCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-primary" id="adminLoginSubmitBtn" style="flex:1;">Enter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div class="overlay hidden" id="adminPanelOverlay">
+  <div class="modal" style="max-width:500px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="modal-title" style="margin-bottom:0;">Admin Panel</div>
+      <button class="btn btn-ghost btn-sm" id="adminPanelCloseBtn">Close</button>
+    </div>
+    <div class="modal-sub">PIN management and admin controls.</div>
+    <div class="card-title">Member PINs</div>
+    <div id="adminPinList"></div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">Announcement</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Post a message that all users see above their portfolio. Great for announcements, challenges, or reminders.</div>
+      <textarea class="form-input" id="adminAnnouncementText" rows="3" placeholder="e.g. New rule: everyone must buy at least one stock this week!" style="resize:vertical;margin-bottom:8px;"></textarea>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-primary btn-sm" id="adminPostAnnouncementBtn" style="flex:1;" onclick="postAnnouncement()">Post Announcement</button>
+        <button class="btn btn-ghost btn-sm" id="adminClearAnnouncementBtn" onclick="clearAnnouncement()">Clear</button>
+      </div>
+      <div id="adminAnnouncementStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">Family Access Code</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Set a code that family members enter once to access the app. Strangers who find the URL won't be able to get in.</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="form-input" id="adminAccessCode" type="text" placeholder="e.g. stocks2026" style="flex:1;font-size:14px;">
+        <button class="btn btn-primary btn-sm" id="adminSaveAccessCodeBtn">Save</button>
+      </div>
+      <div id="adminAccessCodeStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">AI Weekly Recap</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Enter your Anthropic API key to enable AI-powered weekly recaps. Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);">console.anthropic.com</a></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <input class="form-input" id="adminAnthropicKey" type="password" placeholder="sk-ant-api03-..." style="flex:1;font-size:13px;">
+        <button class="btn btn-primary btn-sm" id="adminSaveAnthropicBtn">Save</button>
+      </div>
+      <div id="adminAnthropicStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:8px;">Danger Zone</div>
+      <button class="btn btn-full" id="adminClearChatBtn" style="background:var(--amber);color:#000;margin-bottom:8px;">Clear All Chat Messages</button>
+      <button class="btn btn-danger btn-full" id="adminResetTriggerBtn">Reset All Portfolios &amp; Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET CONFIRM -->
+<div class="overlay hidden" id="resetOverlay">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title">Reset Everything?</div>
+    <div class="modal-sub">This deletes ALL portfolios, trades, and members. Cannot be undone.</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="resetCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-danger" id="resetConfirmBtn" style="flex:1;">Yes, Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- AFTER HOURS ORDER QUEUE -->
+<div class="overlay hidden" id="afterHoursOverlay">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title" style="color:var(--amber);">Market is Closed — Queue Order?</div>
+    <div class="modal-sub" style="margin-bottom:12px;">
+      The US stock market is currently closed. You can <b>queue this order</b> and it will automatically execute when the market opens tomorrow morning.
+    </div>
+    <div id="ahOrderSummary" style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;font-size:14px;line-height:1.7;"></div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;font-size:13px;line-height:1.6;border-left:3px solid var(--amber);">
+      <b>How this works (just like real markets):</b><br>
+      Your order will be held overnight and executed at the <b>actual market price</b> approximately 15 minutes after the market opens (9:45 AM ET). The execution price may be higher or lower than today's closing price — that's called <b>overnight risk</b>.
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="ahCancelBtn" style="flex:1;">Cancel</button>
+      <button class="btn btn-full" id="ahQueueBtn" style="flex:2;background:var(--amber);color:#000;">Queue Order for Tomorrow</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">Family <span>Stock</span> Challenge</div>
+  <div class="header-right">
+    <div class="market-pill"><div class="status-dot pulse" id="statusDot"></div><span id="statusText">...</span></div>
+    <button class="btn btn-ghost btn-sm" id="manageBtn">Members</button>
+    <button class="btn btn-ghost btn-sm" id="adminBtn">Admin</button>
+  </div>
+</div>
+
+<!-- TOP NAVIGATION -->
+<div class="top-nav" id="topNav">
+  <button class="top-nav-btn active" data-page="trading">Trading</button>
+  <button class="top-nav-btn" data-page="screener">Stock Screener</button>
+  <button class="top-nav-btn" data-page="recap">Weekly Recap</button>
+</div>
+
+<!-- PAGE: TRADING -->
+<div class="page active" id="page-trading">
+<div class="player-bar" id="playerBar"></div>
+<div class="main">
+  <div class="left-panel">
+    <div id="announcementSection" style="display:none;"></div>
+    <div class="card">
+      <div class="card-title" id="playerNameLabel">Portfolio</div>
+      <div class="summary-grid">
+        <div class="stat-box"><div class="stat-label">Cash Available</div><div class="stat-value" id="statCash">--</div></div>
+        <div class="stat-box"><div class="stat-label">Holdings Value</div><div class="stat-value" id="statHoldings">--</div></div>
+        <div class="stat-box"><div class="stat-label">Net Worth</div><div class="stat-value" id="statNet">--</div></div>
+        <div class="stat-box"><div class="stat-label">Gain / Loss</div><div class="stat-value" id="statGain">--</div><div class="stat-sub" id="statGainPct"></div></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="holdingsBar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px;"><span>Cash</span><span>Holdings</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Trade Stocks</div>
+      <div class="search-row">
+        <div class="search-results" style="flex:1;position:relative;">
+          <input class="search-input" id="tickerInput" placeholder="Name or symbol (e.g. Apple, AAPL)" maxlength="40" style="width:100%;">
+          <div class="search-dropdown" id="searchDropdown"></div>
+        </div>
+        <button class="btn btn-primary" id="lookupBtn">Look Up</button>
+      </div>
+      <div class="quote-result" id="quoteResult">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div><div class="quote-ticker" id="qTicker"></div><div class="quote-name" id="qName"></div></div>
+          <span id="qExchange" style="font-size:11px;background:rgba(79,142,247,.15);color:var(--accent);padding:3px 8px;border-radius:4px;font-weight:600;"></span>
+        </div>
+        <div class="quote-price" id="qPrice"></div>
+        <div class="quote-change" id="qChange"></div>
+        <div class="trade-row">
+          <div><div class="form-label">Shares</div><input class="qty-input" type="number" id="qtyInput" min="1" value="1"></div>
+          <button class="btn btn-success" id="buyBtn">Buy</button>
+          <button class="btn btn-danger" id="sellBtn">Sell</button>
+        </div>
+        <div class="trade-cost" id="tradeCost"></div>
+        <div class="stock-news" id="stockNews" style="display:none;">
+          <div class="stock-news-title">Latest News</div>
+          <div id="stockNewsList"></div>
+        </div>
+        <div class="chart-container" id="chartContainer" style="display:none;">
+          <div class="chart-header">
+            <div class="chart-title">Price Chart</div>
+            <div class="chart-range-btns">
+              <button class="chart-range-btn" data-range="7">1W</button>
+              <button class="chart-range-btn active" data-range="30">1M</button>
+              <button class="chart-range-btn" data-range="90">3M</button>
+              <button class="chart-range-btn" data-range="180">6M</button>
+              <button class="chart-range-btn" data-range="365">1Y</button>
+            </div>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chartCanvas" width="700" height="260" style="width:100%;height:260px;"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="pendingOrdersSection" style="display:none;padding:0 0 0 0;">
+    </div>
+    <div class="card" style="overflow:visible;padding-left:0;padding-right:0;">
+      <div style="padding:0 20px;">
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="holdings">Holdings</button>
+          <button class="tab-btn" data-tab="history">Trade History</button>
+        </div>
+      </div>
+      <div class="tab-pane active" id="tab-holdings"><div id="holdingsContainer" style="overflow-x:auto;width:100%;"><div class="empty"><div class="empty-icon">📈</div>No positions yet.</div></div></div>
+      <div class="tab-pane" id="tab-history"><div id="historyContainer"><div class="empty"><div class="empty-icon">📋</div>No trades yet.</div></div></div>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-title" style="margin-bottom:12px;">Family Chat</div>
+      <div class="chat-box" id="chatBox"><div class="chat-empty">No messages yet. Say something!</div></div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatInput" placeholder="Message..." maxlength="500">
+        <button class="chat-send-btn" id="chatSendBtn">&#10148;</button>
+      </div>
+    </div>
+  </div>
+  <div class="right-panel">
+    <div class="card"><div class="card-title">Leaderboard</div><div id="leaderboard"><div class="empty" style="padding:16px;">Loading...</div></div></div>
+    <div class="card"><div class="card-title">Investing Tip</div><div id="tipText"></div><button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%;" id="nextTipBtn">Next Tip</button></div>
+    <div class="card"><div class="card-title">Market Snapshot</div><div id="marketSnapshot" style="color:var(--muted);font-size:13px;">Loading...</div></div>
+    <div class="card"><div class="card-title">Market News</div><div id="marketNews" style="color:var(--muted);font-size:13px;">Loading...</div></div>
+  </div>
+</div>
+</div><!-- /page-trading -->
+
+<!-- PAGE: STOCK SCREENER -->
+<div class="page" id="page-screener">
+  <div class="screener-header">
+    <div class="screener-title">Stock Screener</div>
+    <select class="list-select" id="screenerListSelect">
+      <option value="sp500">S&P 500 Top 25</option>
+      <option value="tech">Tech Growth</option>
+      <option value="dividend">Dividend Champions</option>
+      <option value="smallcap">Small Cap Growth</option>
+      <option value="healthcare">Healthcare</option>
+      <option value="energy">Energy</option>
+      <option value="retail">Retail & Consumer</option>
+      <option value="watchlist">My Watchlist</option>
+    </select>
+    <div class="watchlist-add-row" id="watchlistAddRow" style="display:none;">
+      <input class="watchlist-add-input" id="watchlistAddInput" placeholder="Add ticker..." maxlength="10">
+      <button class="btn btn-primary btn-sm" id="watchlistAddBtn">Add</button>
+    </div>
+    <button class="btn btn-primary btn-sm" id="screenerRefreshBtn">Refresh Data</button>
+  </div>
+  <div class="screener-status" id="screenerStatus" style="display:none;">
+    <span id="screenerStatusText">Loading...</span>
+    <div class="screener-progress"><div class="screener-progress-fill" id="screenerProgressFill" style="width:0%"></div></div>
+  </div>
+  <div class="screener-wrap">
+    <table class="screener-table" id="screenerTable">
+      <thead><tr>
+        <th data-col="rank" style="width:50px;text-align:center;">#</th>
+        <th data-col="symbol" style="text-align:left;" title="The stock's ticker symbol — a short code used to identify a company on the stock exchange (e.g. AAPL = Apple).">Symbol</th>
+        <th data-col="name" style="text-align:left;" title="The full company name behind the ticker symbol.">Company</th>
+        <th data-col="price" title="The current market price per share. This is what you'd pay to buy one share right now.">Price</th>
+        <th data-col="change" title="How much the stock price moved today compared to yesterday's close. Green = up, Red = down.">Day Chg</th>
+        <th data-col="pe" title="Price-to-Earnings Ratio. Compares the stock price to the company's profits. Lower P/E may mean the stock is cheaper relative to earnings. A P/E of 15-20 is average; above 30 is expensive; below 10 could be a bargain or a warning sign.">P/E</th>
+        <th data-col="fwdPe" title="Forward P/E. Same as P/E but uses estimated future earnings instead of past earnings. If Forward P/E is lower than P/E, analysts expect profits to grow — a good sign.">Fwd P/E</th>
+        <th data-col="eps" title="Earnings Per Share. The company's profit divided by number of shares. Higher EPS = more profitable. If EPS is negative, the company is currently losing money.">EPS</th>
+        <th data-col="fwdEps" title="Forward EPS. The estimated future earnings per share based on analyst predictions. If higher than current EPS, the company is expected to become more profitable.">Fwd EPS</th>
+        <th data-col="divYield" title="Dividend Yield. The percentage of the stock price paid out as cash dividends each year. A 3% yield means for every $100 invested, you receive $3/year in cash. Not all companies pay dividends.">Div Yield</th>
+        <th data-col="wk52hi" title="The highest price this stock has traded at in the past 52 weeks (1 year). Useful for understanding the stock's recent range.">52W High</th>
+        <th data-col="wk52lo" title="The lowest price this stock has traded at in the past 52 weeks (1 year). If the current price is near the 52W Low, it could be a bargain — or falling for a reason.">52W Low</th>
+        <th data-col="pctFrom52hi" title="How far below (or above) the 52-week high the stock currently sits. -5% means it's 5% below its peak. Closer to 0% = near its high = strong momentum.">% from High</th>
+        <th data-col="ma50" title="Price vs 50-Day Moving Average. The 50-MA is the average price over the last 50 trading days. If the stock is ABOVE it (positive %), it's in a short-term uptrend. Below it = short-term downtrend.">vs 50-MA</th>
+        <th data-col="ma200" title="Price vs 200-Day Moving Average. The 200-MA is a long-term trend indicator. Stock ABOVE 200-MA = long-term uptrend (bullish). Below = long-term downtrend (bearish). This is one of the most watched indicators by professional traders.">vs 200-MA</th>
+        <th data-col="mktCap" title="Market Capitalization. The total value of all the company's shares combined. Large cap ($100B+) = stable, blue chip. Mid cap ($10-100B) = growth potential. Small cap (under $10B) = higher risk and reward.">Mkt Cap</th>
+        <th data-col="beta" title="Beta measures how much a stock moves compared to the overall market. Beta of 1.0 = moves with the market. Above 1.0 = more volatile (bigger swings). Below 1.0 = more stable. Negative beta = moves opposite to the market.">Beta</th>
+        <th data-col="valueScore" title="Value Score (0-100). Rates how good of a 'deal' the stock is based on P/E ratio, forward P/E, and earnings growth. Higher score = better value for your money. Based on: low P/E, improving forward P/E, positive and growing EPS.">Value</th>
+        <th data-col="momentumScore" title="Momentum Score (0-100). Rates how strong the stock's price trend is. Higher score = stronger upward momentum. Based on: proximity to 52-week high, trading above 50-day and 200-day moving averages.">Momentum</th>
+        <th data-col="yieldScore" title="Yield Score (0-100). Rates the stock's dividend income potential. Higher score = better dividend payout. Stocks with no dividend get a low score. Great dividends (4%+) score highest.">Yield</th>
+        <th data-col="compositeScore" style="min-width:130px;" title="Overall Composite Score (0-100). A weighted blend of all three scores: 35% Value + 45% Momentum + 20% Yield. Green (65+) = Strong. Yellow (40-64) = Neutral. Red (below 40) = Weak. Use this as a starting point for research, not as the sole reason to buy!">Score</th>
+        <th data-col="trade" style="width:60px;cursor:default;"></th>
+      </tr></thead>
+      <tbody id="screenerBody">
+        <tr><td colspan="23" style="text-align:center;padding:40px;color:var(--muted);font-family:inherit;">Select a list and click Refresh Data to load stock analysis.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div><!-- /page-screener -->
+
+<!-- PAGE: WEEKLY RECAP -->
+<div class="page" id="page-recap">
+  <div class="recap-page">
+    <div class="recap-header">
+      <div class="recap-title">Weekly Recap</div>
+      <div class="recap-dates" id="recapDates">Loading...</div>
+      <div id="recapCacheInfo" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+      <button class="btn btn-ghost btn-sm" id="recapRegenBtn" style="margin-top:10px;display:none;">Regenerate with AI</button>
+    </div>
+    <div id="recapContent">
+      <div class="recap-empty">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Generating Weekly Recap...</div>
+        <div>Analyzing this week's trades and portfolio performance.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="app.js?v=2"></script>
+</body>
+</html>
