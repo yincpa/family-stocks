@@ -63,6 +63,7 @@ var pinEntry = '', pinCallback = null, pinMode = 'verify';
 var pinNewTemp = '', pinTargetMember = null;
 var refreshTimer = null, isRefreshing = false;
 var chatMessages = [];
+var isAdminSession = false;
 
 // ============================================================
 // FIREBASE (using compat SDK - window.firebase)
@@ -1274,6 +1275,7 @@ document.getElementById('adminLoginSubmitBtn').addEventListener('click', functio
   if (!cfg||!cfg.adminPassword) { showToast('No admin password set','error'); return; }
   if (entered !== cfg.adminPassword) { showToast('Wrong admin password','error'); return; }
   document.getElementById('adminLoginOverlay').classList.add('hidden');
+  isAdminSession = true;
   renderAdminPinList();
   // Show current announcement
   fbGet('announcement').then(function(data) {
@@ -1689,7 +1691,7 @@ function generateAIRecap(recapData, week) {
     if (cached && cached.html) {
       document.getElementById('recapContent').innerHTML = cached.html;
       document.getElementById('recapCacheInfo').textContent = 'AI recap generated ' + new Date(cached.generatedAt).toLocaleString() + ' (cached)';
-      document.getElementById('recapRegenBtn').style.display = 'inline-flex';
+      if (isAdminSession) { document.getElementById('recapRegenBtn').style.display = 'inline-flex'; }
       return;
     }
     // No cache — generate fresh
@@ -1806,7 +1808,7 @@ function callAnthropicForRecap(recapData, week, cacheKey) {
 
     document.getElementById('recapContent').innerHTML = html;
     document.getElementById('recapCacheInfo').textContent = 'AI recap generated just now';
-    document.getElementById('recapRegenBtn').style.display = 'inline-flex';
+    if (isAdminSession) { document.getElementById('recapRegenBtn').style.display = 'inline-flex'; }
 
     // Cache in Firebase
     fbSet('recapCache/' + cacheKey, {
@@ -1828,11 +1830,16 @@ document.querySelector('[data-page="recap"]').addEventListener('click', function
   setTimeout(generateWeeklyRecap, 100);
 });
 
-// Regenerate button
+// Regenerate button (admin-only)
 document.getElementById('recapRegenBtn').addEventListener('click', function() {
+  var pw = prompt('Enter admin password to regenerate the recap:');
+  if (!pw) return;
+  if (!cfg || pw !== cfg.adminPassword) {
+    showToast('Wrong admin password.', 'error');
+    return;
+  }
   var week = getWeekRange();
   var cacheKey = getRecapCacheKey(week);
-  // Clear cache and regenerate
   fbRemove('recapCache/' + cacheKey).then(function() {
     generateWeeklyRecap();
   });
