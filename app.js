@@ -1,6 +1,7 @@
 
 // ============================================================
 // EMBEDDED CONFIG — fill in before uploading to GitHub
+
 // ============================================================
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
