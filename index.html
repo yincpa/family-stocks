@@ -549,8 +549,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       Your order will be held overnight and executed at the <b>actual market price</b> approximately 15 minutes after the market opens (9:45 AM ET). The execution price may be higher or lower than today's closing price — that's called <b>overnight risk</b>.
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" id="ahCancelBtn" style="flex:1;">Cancel</button>
-      <button class="btn btn-full" id="ahQueueBtn" style="flex:2;background:var(--amber);color:#000;">Queue Order for Tomorrow</button>
+      <button class="btn btn-ghost" id="ahCancelBtn" style="flex:1;" onclick="cancelQueueOrder()">Cancel</button>
+      <button class="btn btn-full" id="ahQueueBtn" style="flex:2;background:var(--amber);color:#000;" onclick="submitQueueOrder()">Queue Order for Tomorrow</button>
     </div>
   </div>
 </div>

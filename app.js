@@ -5,7 +5,7 @@
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
-  adminPassword:   'seattle123',
+  adminPassword:   'seattle123’,
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
@@ -16,7 +16,6 @@ var EMBEDDED = {
     appId:             '',
   }
 };
-
 
 // ============================================================
 // CONSTANTS
@@ -372,6 +371,8 @@ function startApp() {
   startChat();
   renderMarketNews();
   setInterval(renderMarketNews, 30*60*1000);
+  // Listen for pending orders in real-time
+  fbListen('pendingOrders', function() { renderPendingOrders(); });
   // Check and execute any pending orders from after hours
   setTimeout(checkAndExecutePendingOrders, 3000);
 }
@@ -1846,15 +1847,13 @@ document.getElementById('recapRegenBtn').addEventListener('click', function() {
 // ============================================================
 // AFTER HOURS HANDLERS
 // ============================================================
-document.getElementById('ahCancelBtn').addEventListener('click', function() {
+function cancelQueueOrder() {
   document.getElementById('afterHoursOverlay').classList.add('hidden');
   pendingTradeDetails = null;
-});
+}
 
-document.getElementById('ahQueueBtn').addEventListener('click', function() {
+function submitQueueOrder() {
   if (!pendingTradeDetails) return;
-  var btn = document.getElementById('ahQueueBtn');
-  // Require PIN before queuing
   openPinModal(pendingTradeDetails.playerId, function() {
     var orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
     var order = {
@@ -1872,11 +1871,12 @@ document.getElementById('ahQueueBtn').addEventListener('click', function() {
       document.getElementById('afterHoursOverlay').classList.add('hidden');
       pendingTradeDetails = null;
       showToast('Order queued! Will execute at market open tomorrow.');
+      renderPendingOrders();
     }).catch(function(e) {
       showToast('Failed to queue order: ' + e.message, 'error');
     });
   });
-});
+}
 
 // ============================================================
 // PENDING ORDER PROCESSING
