@@ -5,7 +5,7 @@
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
-  adminPassword:   ‘seattle123’,
+  adminPassword:   'seattle123',
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
