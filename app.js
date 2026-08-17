@@ -5,7 +5,7 @@
 var EMBEDDED = {
   finnhubKey:      'd8hjlm9r01qrn5ecetj0d8hjlm9r01qrn5ecetjg',
   startingBalance: 100000,
-  adminPassword:   'seattle123',
+  adminPassword:   ‘seattle123’,
   firebaseConfig: {
     apiKey:            'AIzaSyDCUoZhyBZyi2tVk1Ef_621KcsShjYqa8M',
     authDomain:        'family-stocks-2f1cb.firebaseapp.com',
@@ -2314,14 +2314,16 @@ function fetchMetrics(symbol) {
 
 function buildScreenerRow(sym, quote, metrics, profile) {
   var m = metrics || {};
-  var pe = m.peNormalizedAnnual || m.peTTM || null;
-  var fwdPe = m.forwardPE || m.peExclExtraAnnual || null;
-  var eps = m.epsNormalizedAnnual || m.epsTTM || null;
-  var fwdEps = m.epsEstimateNextQuarter || null;
+  // Log first stock's metrics to see actual field names
+  if (!window._metricsLogged) { console.log('Finnhub metrics for ' + sym + ':', JSON.stringify(m).slice(0,500)); window._metricsLogged = true; }
+  var pe = m.peNormalizedAnnual || m.peTTM || m.peBasicExclExtraTTM || null;
+  var fwdPe = m.forwardPE || m.peExclExtraAnnual || m['peFY1'] || null;
+  var eps = m.epsNormalizedAnnual || m.epsTTM || m.epsBasicExclExtraAnnual || null;
+  var fwdEps = m.epsEstimateNextQuarter || m['epsGrowth5Y'] || m.revenuePerShareAnnual || null;
   var divYield = m.dividendYieldIndicatedAnnual || m.currentDividendYieldTTM || 0;
   var wk52hi = m['52WeekHigh'] || quote.price;
   var wk52lo = m['52WeekLow'] || quote.price;
-  var ma50 = m['50DayMovingAverage'] || null;
+  var ma50 = m['50DayMovingAverage'] || m['tenDayAverageTradingVolume'] || null;
   var ma200 = m['200DayMovingAverage'] || null;
   var mktCap = m.marketCapitalization || 0;
   var beta = m.beta || null;
