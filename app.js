@@ -2456,8 +2456,8 @@ function buildScreenerRow(sym, quote, metrics, profile) {
   var pctFrom52hi = wk52hi > 0 ? ((quote.price - wk52hi) / wk52hi) * 100 : 0;
   var return1w = m['5DayPriceReturnDaily'] != null ? m['5DayPriceReturnDaily'] : null;
   var return1y = m['52WeekPriceReturnDaily'] != null ? m['52WeekPriceReturnDaily'] : null;
-  var pctVsMa50 = ma50 ? ((quote.price - ma50) / ma50) * 100 : null;
-  var pctVsMa200 = ma200 ? ((quote.price - ma200) / ma200) * 100 : null;
+  var pctVsMa50 = ma50;
+  var pctVsMa200 = ma200;
 
   // ── SCORING ──
   var valueScore = calcValueScore(pe, fwdPe, eps, fwdEps);
@@ -2499,23 +2499,31 @@ function calcEstimatedRSI(price, high52, low52, return1w, return3m, return6m) {
   var range = high52 - low52;
   var positionInRange = range > 0 ? ((price - low52) / range) * 100 : 50;
 
-  // Adjust with recent momentum
-  var momentumAdj = 0;
+  // Compress to RSI-like range: map 0-100 position to roughly 20-80
+  // Real RSI rarely hits 0 or 100 — it oscillates mostly between 20-80
+  var rsi = 20 + (positionInRange * 0.6);
+
+  // Adjust with recent momentum (smaller increments for realistic values)
   if (return1w !== null) {
-    if (return1w > 5) momentumAdj += 10;
-    else if (return1w > 2) momentumAdj += 5;
-    else if (return1w < -5) momentumAdj -= 10;
-    else if (return1w < -2) momentumAdj -= 5;
+    if (return1w > 5) rsi += 6;
+    else if (return1w > 2) rsi += 3;
+    else if (return1w < -5) rsi -= 6;
+    else if (return1w < -2) rsi -= 3;
   }
   if (return3m !== null) {
-    if (return3m > 20) momentumAdj += 8;
-    else if (return3m > 10) momentumAdj += 4;
-    else if (return3m < -20) momentumAdj -= 8;
-    else if (return3m < -10) momentumAdj -= 4;
+    if (return3m > 20) rsi += 5;
+    else if (return3m > 10) rsi += 3;
+    else if (return3m < -20) rsi -= 5;
+    else if (return3m < -10) rsi -= 3;
+  }
+  if (return6m !== null) {
+    if (return6m > 30) rsi += 4;
+    else if (return6m > 10) rsi += 2;
+    else if (return6m < -30) rsi -= 4;
+    else if (return6m < -10) rsi -= 2;
   }
 
-  var rsi = Math.max(0, Math.min(100, positionInRange + momentumAdj));
-  return Math.round(rsi);
+  return Math.round(Math.max(5, Math.min(95, rsi)));
 }
 
 function calcValueScore(pe, fwdPe, eps, fwdEps) {
