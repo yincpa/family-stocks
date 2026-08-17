@@ -440,7 +440,7 @@ function refreshAllPrices() {
 function fetchQuote(symbol) {
   return fetch('https://finnhub.io/api/v1/quote?symbol=' + symbol.toUpperCase() + '&token=' + cfg.finnhubKey)
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (!d || !d.c) throw new Error('Not found'); return {symbol:symbol.toUpperCase(), price:d.c, change:d.d, changePct:d.dp}; });
+    .then(function(d){ if (!d || !d.c) throw new Error('Not found'); return {symbol:symbol.toUpperCase(), price:d.c, change:d.d, changePct:d.dp, high:d.h, low:d.l, open:d.o, prevClose:d.pc}; });
 }
 function fetchProfile(symbol) {
   return fetch('https://finnhub.io/api/v1/stock/profile2?symbol=' + symbol.toUpperCase() + '&token=' + cfg.finnhubKey)
@@ -997,8 +997,8 @@ function lookupStock() {
   if (!symbol) { showToast('Enter a stock symbol','error'); return; }
   var btn = document.getElementById('lookupBtn');
   setLoading(btn, true, 'Fetching');
-  Promise.all([fetchQuote(symbol), fetchProfile(symbol)]).then(function(results) {
-    var quote = results[0], profile = results[1];
+  Promise.all([fetchQuote(symbol), fetchProfile(symbol), fetchMetrics(symbol)]).then(function(results) {
+    var quote = results[0], profile = results[1], metrics = results[2];
     currentQuote = quote;
     var holding = portfolios[activePlayer]&&portfolios[activePlayer].holdings&&portfolios[activePlayer].holdings[symbol];
     document.getElementById('qTicker').textContent = symbol;
@@ -1010,6 +1010,8 @@ function lookupStock() {
     ce.textContent = (quote.change>=0?'▲':'▼') + ' ' + fmt(Math.abs(quote.change)) + ' (' + fmtPct(quote.changePct||0) + ') today  ·  You own: ' + (holding&&holding.shares||0) + ' shares';
     document.getElementById('quoteResult').classList.add('visible');
     if (holding) fbUpdate('portfolios/'+activePlayer+'/holdings/'+symbol, {lastPrice:quote.price, dayChange:quote.change||0});
+    // Render stock stats
+    renderQuoteStats(quote, metrics, profile);
     updateTradeCost();
     var stockNews = document.getElementById('stockNews'), stockNewsList = document.getElementById('stockNewsList');
     if (stockNews&&stockNewsList) {
@@ -1022,6 +1024,49 @@ function lookupStock() {
   }).catch(function(){ showToast('Could not find "' + symbol + '". Check the symbol.','error'); })
   .then(function(){ setLoading(btn, false, 'Look Up'); });
 }
+function renderQuoteStats(quote, metrics, profile) {
+  var el = document.getElementById('quoteStats');
+  if (!el) return;
+  var m = metrics || {};
+  var q = quote || {};
+
+  var dayHigh = q.high || null;
+  var dayLow = q.low || null;
+  var open = q.open || null;
+  var prevClose = q.prevClose || null;
+  var wk52hi = m['52WeekHigh'] || null;
+  var wk52lo = m['52WeekLow'] || null;
+  var volume = m['10DayAverageTradingVolume'] || null;
+  var pe = m.peNormalizedAnnual || m.peTTM || null;
+  var eps = m.epsNormalizedAnnual || m.epsTTM || null;
+  var mktCap = m.marketCapitalization || null;
+  var divYield = m.dividendYieldIndicatedAnnual || m.currentDividendYieldTTM || null;
+  var beta = m.beta || null;
+  var return3m = m['13WeekPriceReturnDaily'] || null;
+
+  var stats = [];
+  if (open !== null) stats.push({label:'Open', value:fmt(open)});
+  if (prevClose !== null) stats.push({label:'Prev Close', value:fmt(prevClose)});
+  if (dayHigh !== null && dayLow !== null) stats.push({label:"Day Range", value:fmt(dayLow) + ' - ' + fmt(dayHigh)});
+  if (wk52hi !== null && wk52lo !== null) stats.push({label:"52-Week Range", value:fmt(wk52lo) + ' - ' + fmt(wk52hi)});
+  if (volume !== null) stats.push({label:'Avg Volume (10D)', value:(volume * 1000000).toLocaleString('en-US', {maximumFractionDigits:0})});
+  if (pe !== null) stats.push({label:'P/E Ratio', value:Number(pe).toFixed(2)});
+  if (eps !== null) stats.push({label:'EPS', value:'$' + Number(eps).toFixed(2)});
+  if (mktCap !== null) stats.push({label:'Market Cap', value:mktCap >= 1000 ? (mktCap/1000).toFixed(1) + 'T' : mktCap >= 1 ? mktCap.toFixed(1) + 'B' : (mktCap*1000).toFixed(0) + 'M'});
+  if (divYield !== null && divYield > 0) stats.push({label:'Dividend Yield', value:Number(divYield).toFixed(2) + '%'});
+  if (beta !== null) stats.push({label:'Beta', value:Number(beta).toFixed(2)});
+  if (return3m !== null) stats.push({label:'3-Month Return', value:(return3m >= 0 ? '+' : '') + Number(return3m).toFixed(2) + '%'});
+
+  // Make even number of stats for grid
+  if (stats.length % 2 !== 0) stats.push({label:'', value:''});
+
+  el.style.display = stats.length > 0 ? 'grid' : 'none';
+  el.innerHTML = stats.map(function(s) {
+    if (!s.label) return '<div class="quote-stat"></div>';
+    return '<div class="quote-stat"><div class="quote-stat-label">' + s.label + '</div><div class="quote-stat-value">' + s.value + '</div></div>';
+  }).join('');
+}
+
 function updateTradeCost() {
   if (!currentQuote) return;
   var qty = parseInt(document.getElementById('qtyInput').value)||0;
@@ -2201,6 +2246,84 @@ document.querySelectorAll('.top-nav-btn').forEach(function(btn) {
 // ============================================================
 // STOCK SCREENER
 // ============================================================
+var COMPANY_DESC = {
+  // S&P 500 Top 25
+  'AAPL':'Designs and sells iPhones, iPads, Macs, Apple Watch, and services like iCloud, App Store, and Apple Music. Makes money from hardware sales and a fast-growing services business.',
+  'MSFT':'Makes Windows, Office 365, Azure cloud computing, Xbox, and LinkedIn. Azure cloud is its biggest growth driver, competing with Amazon AWS.',
+  'NVDA':'Designs GPU chips used in gaming, AI training, and data centers. The leading chip supplier for artificial intelligence, powering ChatGPT and similar systems.',
+  'GOOG':'Owns Google Search, YouTube, Android, and Google Cloud. Makes most of its money from online advertising shown in search results and YouTube videos.',
+  'AMZN':'Runs the largest e-commerce marketplace and Amazon Web Services (AWS), the world\'s biggest cloud computing platform. AWS is the profit engine.',
+  'META':'Owns Facebook, Instagram, WhatsApp, and Threads. Makes money from targeted advertising shown to its billions of users. Also investing heavily in VR/AR (Meta Quest).',
+  'BRK.B':'Warren Buffett\'s holding company. Owns GEICO insurance, BNSF railroad, Dairy Queen, and large stock positions in Apple, Coca-Cola, and others.',
+  'LLY':'Major pharmaceutical company. Makes Mounjaro/Zepbound (weight loss/diabetes drugs) and Verzenio (cancer). Weight loss drugs are driving massive growth.',
+  'AVGO':'Makes semiconductor chips for data centers, networking, and broadband. Also owns VMware for cloud software. Major supplier to Apple and cloud companies.',
+  'JPM':'Largest US bank. Makes money from lending (mortgages, credit cards), investment banking (helping companies raise money), and asset management.',
+  'TSLA':'Makes electric vehicles (Model 3, Y, S, X), solar panels, and batteries. Also developing self-driving technology and humanoid robots.',
+  'UNH':'Largest health insurance company in the US. Also owns Optum, which provides healthcare services, pharmacy benefits, and data analytics.',
+  'V':'Operates the Visa payment network. Every time you swipe a Visa card, Visa takes a small fee. Doesn\'t lend money — just processes transactions.',
+  'XOM':'Largest US oil and gas company. Explores, produces, and sells oil, natural gas, and petroleum products worldwide.',
+  'MA':'Operates the Mastercard payment network, similar to Visa. Makes money from transaction processing fees every time a Mastercard is used.',
+  'JNJ':'Healthcare conglomerate. Makes pharmaceuticals (cancer drugs, vaccines), medical devices (surgical tools), and consumer health products.',
+  'PG':'Makes consumer products you use daily: Tide detergent, Pampers diapers, Gillette razors, Crest toothpaste, Bounty paper towels.',
+  'COST':'Runs Costco warehouse clubs. Members pay annual fees for access to bulk products at low prices. Membership fees are a major profit source.',
+  'HD':'Largest home improvement retailer. Sells tools, lumber, appliances, and building materials. Benefits when housing market is strong.',
+  'ABBV':'Pharmaceutical company. Known for Humira (arthritis), Botox (cosmetic/medical), and Skyrizi (psoriasis). Acquires smaller drug companies for growth.',
+  'WMT':'World\'s largest retailer. Runs Walmart stores, Sam\'s Club, and a growing e-commerce business competing with Amazon.',
+  'NFLX':'Streaming service with 280M+ subscribers. Makes money from monthly subscriptions and a newer ad-supported tier. Produces original shows and movies.',
+  'CRM':'Makes Salesforce, the leading customer relationship management (CRM) software. Companies use it to track sales, customer service, and marketing.',
+  'BAC':'Second-largest US bank. Makes money from consumer banking, wealth management, and corporate lending.',
+  'ORCL':'Enterprise software company. Makes database software, cloud applications, and cloud infrastructure. Growing fast in cloud computing.',
+  // Tech Growth
+  'PLTR':'Makes data analytics software for governments and large companies. Helps organizations find patterns in massive amounts of data. Known for defense/intelligence work.',
+  'CRWD':'Cybersecurity company. Its Falcon platform protects computers and cloud systems from hackers using AI-powered threat detection.',
+  'NET':'Runs a global cloud network that makes websites faster and more secure. Protects against cyberattacks and speeds up internet traffic.',
+  'SNOW':'Cloud data platform. Lets companies store, share, and analyze massive datasets across different cloud providers like AWS and Azure.',
+  'DDOG':'Cloud monitoring and analytics. Helps companies watch their servers, apps, and infrastructure to prevent outages and fix problems fast.',
+  'MDB':'Makes MongoDB, a popular database used by developers. Companies pay to store and manage data in a flexible, modern format.',
+  'ZS':'Cloud security company. Replaces traditional firewalls with a cloud-based system that protects employees working from anywhere.',
+  'PANW':'Largest cybersecurity company. Makes firewalls, cloud security, and AI-powered threat detection for enterprises and governments.',
+  'SHOP':'E-commerce platform. Small and large businesses use Shopify to build online stores, process payments, and manage shipping.',
+  'SQ':'Block (formerly Square). Makes payment terminals for small businesses and Cash App for consumers. Also invested in Bitcoin.',
+  'COIN':'Runs Coinbase, the largest US cryptocurrency exchange. Makes money from trading fees when people buy and sell Bitcoin, Ethereum, etc.',
+  'RBLX':'Runs Roblox, a gaming platform where users create and play games. Makes money from Robux (virtual currency). Very popular with kids and teens.',
+  'HOOD':'Runs Robinhood, the commission-free stock and crypto trading app. Makes money from payment for order flow and premium subscriptions.',
+  'AFRM':'Buy-now-pay-later company. Lets shoppers split purchases into installments at checkout. Partners with Amazon, Shopify, and others.',
+  'APP':'AppLovin makes software for mobile app developers to grow their businesses through advertising and monetization.',
+  'ARM':'Designs the chip architecture used in virtually every smartphone and increasingly in laptops and data centers. Licenses its designs to other chipmakers.',
+  'RDDT':'Runs Reddit, one of the most popular online forums. Makes money from advertising and data licensing for AI training.',
+  'SMCI':'Super Micro Computer. Makes high-performance servers and storage systems, especially for AI and data center workloads. Benefits from the AI boom.',
+  'SOFI':'Online financial services company. Offers student loan refinancing, personal loans, investing, banking, and credit cards — all through one app.',
+  // Dividend Champions
+  'KO':'The Coca-Cola Company. Sells beverages worldwide — Coke, Sprite, Fanta, Dasani water, Minute Maid juice. One of the most recognized brands globally.',
+  'PEP':'PepsiCo. Makes Pepsi, Mountain Dew, Gatorade, Lay\'s chips, Doritos, and Quaker Oats. More diversified than Coca-Cola with its snack business.',
+  'MCD':'McDonald\'s. World\'s largest fast-food chain. Most restaurants are franchised — McDonald\'s makes money from rent and royalties, not just burgers.',
+  'IBM':'Enterprise technology company. Focuses on hybrid cloud, AI (Watson), and consulting services. Spun off its infrastructure business as Kyndryl.',
+  'CVX':'Second-largest US oil company. Explores, produces, and refines oil and natural gas. Also investing in renewable energy and hydrogen.',
+  'T':'AT&T. Telecommunications giant. Provides wireless service, internet, and HBO Max streaming. Makes money from monthly phone and internet bills.',
+  'VZ':'Verizon. Largest US wireless carrier. Makes money from monthly phone plans, internet service, and business communications.',
+  'MO':'Altria. Makes Marlboro cigarettes in the US. Also owns stakes in vaping (NJOY) and cannabis companies. High dividend payer.',
+  // Healthcare
+  'TMO':'Thermo Fisher Scientific. Makes scientific instruments, lab equipment, and diagnostic tools. Essential supplier to pharmaceutical and biotech companies.',
+  'ISRG':'Intuitive Surgical. Makes the da Vinci robotic surgery system used in hospitals worldwide. Surgeons control robotic arms for precise operations.',
+  'ABT':'Abbott Laboratories. Makes medical devices (heart monitors, glucose sensors), diagnostics tests, nutritional products (Ensure, Similac), and pharmaceuticals.',
+  'PFE':'Pfizer. Major pharmaceutical company. Known for the COVID vaccine, Viagra, and many prescription drugs. Acquires smaller drug companies regularly.',
+  'MRK':'Merck. Pharmaceutical company. Makes Keytruda (top-selling cancer drug), Gardasil (HPV vaccine), and animal health products.',
+  'AMGN':'Amgen. Biotech company that makes drugs for cancer, bone disease, and cardiovascular conditions. One of the world\'s largest biotech firms.',
+  // Energy
+  'SLB':'Schlumberger. World\'s largest oilfield services company. Provides drilling, testing, and production technology to oil companies.',
+  'COP':'ConocoPhillips. Independent oil and gas exploration and production company. Focuses on finding and extracting oil, not refining it.',
+  'EOG':'EOG Resources. Major US shale oil producer. Known for efficient drilling operations and strong returns to shareholders.',
+  // Retail & Consumer
+  'TJX':'TJX Companies. Runs TJ Maxx, Marshalls, and HomeGoods. Buys brand-name products at deep discounts and sells them below department store prices.',
+  'LULU':'Lululemon. Premium athletic apparel company. Known for yoga pants and athleisure wear. Strong brand loyalty and growing international presence.',
+  'DPZ':'Domino\'s Pizza. World\'s largest pizza delivery company. Pioneered digital ordering and delivery technology.',
+  'CMG':'Chipotle Mexican Grill. Fast-casual restaurant chain. Known for burritos, bowls, and commitment to fresh ingredients. No franchising — all company-owned.',
+  'NKE':'Nike. World\'s largest athletic shoe and apparel company. Makes money from selling shoes, clothing, and equipment. Strong brand and direct-to-consumer push.',
+  'SBUX':'Starbucks. Largest coffeehouse chain in the world. Makes money from coffee drinks, food, and a loyalty program with millions of members.',
+  'ULTA':'Ulta Beauty. Largest beauty retailer in the US. Sells cosmetics, skincare, haircare, and fragrances. Also has in-store salons.',
+  'MNST':'Monster Beverage. Makes Monster Energy drinks. Distributed through Coca-Cola\'s bottling network. Benefits from growing energy drink market.',
+};
+
 var WATCHLISTS = {
   sp500: ['AAPL','MSFT','NVDA','GOOG','AMZN','META','BRK.B','LLY','AVGO','JPM','TSLA','UNH','V','XOM','MA','JNJ','PG','COST','HD','ABBV','WMT','NFLX','CRM','BAC','ORCL'],
   tech: ['PLTR','CRWD','NET','SNOW','DDOG','MDB','ZS','PANW','SHOP','SQ','COIN','RBLX','U','HOOD','AFRM','PATH','BILL','MNDY','GTLB','DOCN','APP','IONQ','SMCI','ARM','RDDT'],
@@ -2315,41 +2438,84 @@ function fetchMetrics(symbol) {
 function buildScreenerRow(sym, quote, metrics, profile) {
   var m = metrics || {};
   // Log first stock's metrics to see actual field names
-  if (!window._metricsLogged) { console.log('Finnhub metrics for ' + sym + ':', JSON.stringify(m).slice(0,500)); window._metricsLogged = true; }
   var pe = m.peNormalizedAnnual || m.peTTM || m.peBasicExclExtraTTM || null;
   var fwdPe = m.forwardPE || m.peExclExtraAnnual || m['peFY1'] || null;
   var eps = m.epsNormalizedAnnual || m.epsTTM || m.epsBasicExclExtraAnnual || null;
-  var fwdEps = m.epsEstimateNextQuarter || m['epsGrowth5Y'] || m.revenuePerShareAnnual || null;
+  var fwdEps = m.epsEstimateNextQuarter || m.epsGrowthTTMYoy || null;
   var divYield = m.dividendYieldIndicatedAnnual || m.currentDividendYieldTTM || 0;
   var wk52hi = m['52WeekHigh'] || quote.price;
   var wk52lo = m['52WeekLow'] || quote.price;
-  var ma50 = m['50DayMovingAverage'] || m['tenDayAverageTradingVolume'] || null;
-  var ma200 = m['200DayMovingAverage'] || null;
+  var ma50 = m['13WeekPriceReturnDaily'] != null ? m['13WeekPriceReturnDaily'] : null;
+  var ma200 = m['26WeekPriceReturnDaily'] != null ? m['26WeekPriceReturnDaily'] : null;
   var mktCap = m.marketCapitalization || 0;
   var beta = m.beta || null;
 
+  // Estimated RSI: based on position in 52-week range + recent returns
+  var rsi = calcEstimatedRSI(quote.price, wk52hi, wk52lo, return1w, ma50, ma200);
+
   var pctFrom52hi = wk52hi > 0 ? ((quote.price - wk52hi) / wk52hi) * 100 : 0;
+  var return1w = m['5DayPriceReturnDaily'] != null ? m['5DayPriceReturnDaily'] : null;
+  var return1y = m['52WeekPriceReturnDaily'] != null ? m['52WeekPriceReturnDaily'] : null;
   var pctVsMa50 = ma50 ? ((quote.price - ma50) / ma50) * 100 : null;
   var pctVsMa200 = ma200 ? ((quote.price - ma200) / ma200) * 100 : null;
 
   // ── SCORING ──
   var valueScore = calcValueScore(pe, fwdPe, eps, fwdEps);
   var momentumScore = calcMomentumScore(pctFrom52hi, pctVsMa50, pctVsMa200);
+  // RSI modifier: penalize overbought, bonus for oversold
+  if (rsi >= 80) momentumScore = Math.max(0, momentumScore - 10);
+  else if (rsi >= 70) momentumScore = Math.max(0, momentumScore - 5);
+  else if (rsi <= 20) momentumScore = Math.min(100, momentumScore + 10);
+  else if (rsi <= 30) momentumScore = Math.min(100, momentumScore + 5);
   var yieldScore = calcYieldScore(divYield);
   var compositeScore = Math.round(valueScore * 0.35 + momentumScore * 0.45 + yieldScore * 0.20);
+
+  // Build company tooltip
+  var industry = (profile && profile.finnhubIndustry) || '';
+  var country = (profile && profile.country) || '';
+  var weburl = (profile && profile.weburl) || '';
+  var desc = COMPANY_DESC[sym] || '';
+  var tooltip = desc;
+  if (!tooltip && industry) tooltip = industry + (country ? ' (' + country + ')' : '');
+  if (industry && desc) tooltip = desc + ' | Industry: ' + industry;
 
   return {
     symbol: sym,
     name: (profile && profile.name) || sym,
+    tooltip: tooltip,
     price: quote.price,
     change: quote.changePct || 0,
     pe: pe, fwdPe: fwdPe, eps: eps, fwdEps: fwdEps,
     divYield: divYield, wk52hi: wk52hi, wk52lo: wk52lo,
     pctFrom52hi: pctFrom52hi, ma50: pctVsMa50, ma200: pctVsMa200,
-    mktCap: mktCap, beta: beta,
+    rsi: rsi, mktCap: mktCap, beta: beta,
     valueScore: valueScore, momentumScore: momentumScore,
     yieldScore: yieldScore, compositeScore: compositeScore
   };
+}
+
+function calcEstimatedRSI(price, high52, low52, return1w, return3m, return6m) {
+  // Position within 52-week range (0 = at low, 100 = at high)
+  var range = high52 - low52;
+  var positionInRange = range > 0 ? ((price - low52) / range) * 100 : 50;
+
+  // Adjust with recent momentum
+  var momentumAdj = 0;
+  if (return1w !== null) {
+    if (return1w > 5) momentumAdj += 10;
+    else if (return1w > 2) momentumAdj += 5;
+    else if (return1w < -5) momentumAdj -= 10;
+    else if (return1w < -2) momentumAdj -= 5;
+  }
+  if (return3m !== null) {
+    if (return3m > 20) momentumAdj += 8;
+    else if (return3m > 10) momentumAdj += 4;
+    else if (return3m < -20) momentumAdj -= 8;
+    else if (return3m < -10) momentumAdj -= 4;
+  }
+
+  var rsi = Math.max(0, Math.min(100, positionInRange + momentumAdj));
+  return Math.round(rsi);
 }
 
 function calcValueScore(pe, fwdPe, eps, fwdEps) {
@@ -2375,7 +2541,7 @@ function calcValueScore(pe, fwdPe, eps, fwdEps) {
   return Math.max(0, Math.min(100, score));
 }
 
-function calcMomentumScore(pctFrom52hi, pctVsMa50, pctVsMa200) {
+function calcMomentumScore(pctFrom52hi, return3m, return6m) {
   var score = 50;
   // Closer to 52-week high = stronger momentum
   if (pctFrom52hi !== null) {
@@ -2385,22 +2551,25 @@ function calcMomentumScore(pctFrom52hi, pctVsMa50, pctVsMa200) {
     else if (pctFrom52hi > -30) score -= 10;
     else score -= 20;
   }
-  // Above 50-day MA = bullish
-  if (pctVsMa50 !== null) {
-    if (pctVsMa50 > 5) score += 10;
-    else if (pctVsMa50 > 0) score += 5;
-    else if (pctVsMa50 > -5) score -= 5;
+  // 3-month return (short-term trend)
+  if (return3m !== null) {
+    if (return3m > 15) score += 10;
+    else if (return3m > 5) score += 7;
+    else if (return3m > 0) score += 3;
+    else if (return3m > -10) score -= 5;
     else score -= 10;
   }
-  // Above 200-day MA = long-term bullish
-  if (pctVsMa200 !== null) {
-    if (pctVsMa200 > 10) score += 10;
-    else if (pctVsMa200 > 0) score += 5;
-    else if (pctVsMa200 > -10) score -= 5;
+  // 6-month return (long-term trend)
+  if (return6m !== null) {
+    if (return6m > 20) score += 10;
+    else if (return6m > 5) score += 5;
+    else if (return6m > 0) score += 3;
+    else if (return6m > -15) score -= 5;
     else score -= 10;
   }
   return Math.max(0, Math.min(100, score));
 }
+
 
 function calcYieldScore(divYield) {
   if (!divYield || divYield <= 0) return 20;
@@ -2434,8 +2603,8 @@ function renderScreenerTable() {
   tbody.innerHTML = screenerData.map(function(r, i) {
     return '<tr>' +
       '<td style="text-align:center;color:var(--muted);font-family:inherit;">' + (i+1) + '</td>' +
-      '<td style="text-align:left;"><span class="ticker-badge">' + r.symbol + '</span></td>' +
-      '<td style="text-align:left;font-family:inherit;max-width:140px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(r.name) + '</td>' +
+      '<td style="text-align:left;" title="' + (r.tooltip||'').replace(/"/g,'&quot;') + '"><span class="ticker-badge">' + r.symbol + '</span></td>' +
+      '<td style="text-align:left;font-family:inherit;max-width:140px;overflow:hidden;text-overflow:ellipsis;cursor:help;" title="' + (r.tooltip||'').replace(/"/g,'&quot;') + '">' + escapeHtml(r.name) + '</td>' +
       '<td style="text-align:right;">' + fmt(r.price) + '</td>' +
       '<td style="text-align:right;color:' + (r.change>=0?'var(--green)':'var(--red)') + ';">' + (r.change>=0?'+':'') + (r.change||0).toFixed(2) + '%</td>' +
       '<td style="text-align:right;">' + fmtNum(r.pe) + '</td>' +
@@ -2448,6 +2617,7 @@ function renderScreenerTable() {
       '<td style="text-align:right;color:' + (r.pctFrom52hi>=-5?'var(--green)':'var(--red)') + ';">' + (r.pctFrom52hi||0).toFixed(1) + '%</td>' +
       '<td style="text-align:right;color:' + colorForPct(r.ma50) + ';">' + fmtPctOrDash(r.ma50) + '</td>' +
       '<td style="text-align:right;color:' + colorForPct(r.ma200) + ';">' + fmtPctOrDash(r.ma200) + '</td>' +
+      '<td style="text-align:right;color:' + (r.rsi>=70?'var(--red)':r.rsi<=30?'var(--green)':'var(--text)') + ';font-weight:' + (r.rsi>=70||r.rsi<=30?'700':'400') + ';">' + r.rsi + '</td>' +
       '<td style="text-align:right;">' + fmtMktCap(r.mktCap) + '</td>' +
       '<td style="text-align:right;">' + fmtNum(r.beta) + '</td>' +
       '<td style="text-align:right;">' + renderMiniScore(r.valueScore) + '</td>' +

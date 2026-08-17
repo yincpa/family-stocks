@@ -352,6 +352,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .announce-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px;transition:color .15s;}
 .announce-dismiss:hover{color:var(--text);}
 
+
+/* QUOTE STATS */
+.quote-stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:14px;}
+.quote-stat{background:var(--surface2);padding:10px 14px;}
+.quote-stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.quote-stat-value{font-size:14px;font-family:ui-monospace,monospace;margin-top:3px;font-weight:500;}
+
 </style>
 </head>
 <body>
@@ -605,6 +612,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         </div>
         <div class="quote-price" id="qPrice"></div>
         <div class="quote-change" id="qChange"></div>
+        <div class="quote-stats" id="quoteStats" style="display:none;"></div>
         <div class="trade-row">
           <div><div class="form-label">Shares</div><input class="qty-input" type="number" id="qtyInput" min="1" value="1"></div>
           <button class="btn btn-success" id="buyBtn">Buy</button>
@@ -702,8 +710,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         <th data-col="wk52hi" title="The highest price this stock has traded at in the past 52 weeks (1 year). Useful for understanding the stock's recent range.">52W High</th>
         <th data-col="wk52lo" title="The lowest price this stock has traded at in the past 52 weeks (1 year). If the current price is near the 52W Low, it could be a bargain — or falling for a reason.">52W Low</th>
         <th data-col="pctFrom52hi" title="How far below (or above) the 52-week high the stock currently sits. -5% means it's 5% below its peak. Closer to 0% = near its high = strong momentum.">% from High</th>
-        <th data-col="ma50" title="Price vs 50-Day Moving Average. The 50-MA is the average price over the last 50 trading days. If the stock is ABOVE it (positive %), it's in a short-term uptrend. Below it = short-term downtrend.">vs 50-MA</th>
-        <th data-col="ma200" title="Price vs 200-Day Moving Average. The 200-MA is a long-term trend indicator. Stock ABOVE 200-MA = long-term uptrend (bullish). Below = long-term downtrend (bearish). This is one of the most watched indicators by professional traders.">vs 200-MA</th>
+        <th data-col="ma50" title="3-Month Price Return. How much the stock price has changed over the last 13 weeks. Positive = uptrend, negative = downtrend.">3M Return</th>
+        <th data-col="ma200" title="6-Month Price Return. How much the stock price has changed over the last 26 weeks. Positive = sustained uptrend, negative = longer-term weakness.">6M Return</th>
+        <th data-col="rsi" title="Relative Strength Index (estimated). Measures if a stock is overbought or oversold. RSI above 70 = overbought (may pull back). RSI below 30 = oversold (may bounce). RSI 40-60 = neutral. Calculated from the stock's position within its 52-week range and recent price momentum.">RSI (est)</th>
         <th data-col="mktCap" title="Market Capitalization. The total value of all the company's shares combined. Large cap ($100B+) = stable, blue chip. Mid cap ($10-100B) = growth potential. Small cap (under $10B) = higher risk and reward.">Mkt Cap</th>
         <th data-col="beta" title="Beta measures how much a stock moves compared to the overall market. Beta of 1.0 = moves with the market. Above 1.0 = more volatile (bigger swings). Below 1.0 = more stable. Negative beta = moves opposite to the market.">Beta</th>
         <th data-col="valueScore" title="Value Score (0-100). Rates how good of a 'deal' the stock is based on P/E ratio, forward P/E, and earnings growth. Higher score = better value for your money. Based on: low P/E, improving forward P/E, positive and growing EPS.">Value</th>
